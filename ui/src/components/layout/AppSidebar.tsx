@@ -10,7 +10,9 @@ import {
   ChevronRight,
   CircleDollarSign,
   Database,
+  FileCode2,
   FileText,
+  FlaskConical,
   Home,
   Key,
   LogOut,
@@ -149,6 +151,16 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Analytics",
         url: "/analytics",
         icon: BarChart3,
+      },
+      {
+        title: "Scripts",
+        url: "/scripts",
+        icon: FileCode2,
+      },
+      {
+        title: "Evals",
+        url: "/evals",
+        icon: FlaskConical,
       },
       {
         title: "Reports",

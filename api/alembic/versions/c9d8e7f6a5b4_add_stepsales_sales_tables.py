@@ -1,7 +1,7 @@
 """add stepsales sales tables
 
-Revision ID: a1b2c3d4e5f6
-Revises: 00b0201ad918
+Revision ID: c9d8e7f6a5b4
+Revises: cdcf9f65913b
 Create Date: 2026-07-29 00:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "00b0201ad918"
+revision: str = "c9d8e7f6a5b4"
+down_revision: Union[str, None] = "cdcf9f65913b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

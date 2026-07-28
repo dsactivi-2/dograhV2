@@ -1637,3 +1637,46 @@ class StepsalesEventModel(Base):
         Index("ix_stepsales_events_org", "organization_id"),
         Index("ix_stepsales_events_type", "event_type"),
     )
+
+
+class ScriptLibraryEntryModel(Base):
+    """Org-scoped script library entry linked to a workflow / definition.
+
+    Used by internal voice-ops tools: tags, owner, approval queue, and
+    prompt search surface over agent definitions.
+    """
+
+    __tablename__ = "script_library_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False
+    )
+    definition_id = Column(
+        Integer, ForeignKey("workflow_definitions.id", ondelete="SET NULL"), nullable=True
+    )
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    tags = Column(JSON, nullable=False, default=list)
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    approval_status = Column(
+        String(32), nullable=False, default="draft", server_default=text("'draft'")
+    )
+    approved_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index("ix_script_library_org", "organization_id"),
+        Index("ix_script_library_workflow", "workflow_id"),
+        Index("ix_script_library_status", "approval_status"),
+        Index("ix_script_library_owner", "owner_user_id"),
+    )

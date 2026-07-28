@@ -9,6 +9,8 @@ from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.campaign import router as campaign_router
 from api.routes.credentials import router as credentials_router
+from api.routes.disposition_taxonomy import router as disposition_taxonomy_router
+from api.routes.evals import router as evals_router
 from api.routes.folder import router as folder_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.node_types import router as node_types_router
@@ -19,6 +21,7 @@ from api.routes.public_download import router as public_download_router
 from api.routes.public_embed import router as public_embed_router
 from api.routes.reports import router as reports_router
 from api.routes.s3_signed_url import router as s3_router
+from api.routes.scripts import router as scripts_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.stepsales import router as stepsales_router
 from api.routes.outcomes import router as outcomes_router
@@ -52,6 +55,9 @@ router.include_router(s3_router)
 router.include_router(service_keys_router)
 router.include_router(stepsales_router)
 router.include_router(outcomes_router)
+router.include_router(disposition_taxonomy_router)
+router.include_router(scripts_router)
+router.include_router(evals_router)
 router.include_router(organization_usage_router)
 router.include_router(reports_router)
 router.include_router(webrtc_signaling_router)

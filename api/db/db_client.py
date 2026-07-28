@@ -1,6 +1,7 @@
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
+from api.db.disposition_client import DispositionClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
@@ -8,7 +9,10 @@ from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
 from api.db.organization_usage_client import OrganizationUsageClient
+from api.db.outcomes_client import OutcomesClient
 from api.db.reports_client import ReportsClient
+from api.db.script_library_client import ScriptLibraryClient
+from api.db.stepsales_client import StepsalesClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
@@ -20,8 +24,6 @@ from api.db.workflow_recording_client import WorkflowRecordingClient
 from api.db.workflow_run_client import WorkflowRunClient
 from api.db.workflow_run_text_session_client import WorkflowRunTextSessionClient
 from api.db.workflow_template_client import WorkflowTemplateClient
-from api.db.stepsales_client import StepsalesClient
-from api.db.outcomes_client import OutcomesClient
 
 
 class DBClient(
@@ -49,29 +51,11 @@ class DBClient(
     FolderClient,
     StepsalesClient,
     OutcomesClient,
+    DispositionClient,
+    ScriptLibraryClient,
 ):
     """
     Unified database client that combines all specialized database operations.
-
-    This client inherits from:
-    - WorkflowClient: handles workflow and workflow definition operations
-    - WorkflowRunClient: handles workflow run operations
-    - UserClient: handles user and user configuration operations
-    - OrganizationClient: handles organization operations
-    - OrganizationConfigurationClient: handles organization configuration operations
-    - OrganizationUsageClient: handles organization usage reporting aggregates
-    - IntegrationClient: handles integration operations
-    - WorkflowTemplateClient: handles workflow template operations
-    - CampaignClient: handles campaign operations
-    - ReportsClient: handles reports and analytics operations
-    - APIKeyClient: handles API key operations
-    - EmbedTokenClient: handles embed token and session operations
-    - AgentTriggerClient: handles agent trigger operations for API-based call triggering
-    - WebhookCredentialClient: handles webhook credential operations
-    - WebhookDeliveryClient: handles durable outbound webhook delivery records
-    - ToolClient: handles tool operations for reusable HTTP API tools
-    - KnowledgeBaseClient: handles knowledge base document and vector search operations
-    - FolderClient: handles folder operations for grouping workflows (agents)
     """
 
     pass
