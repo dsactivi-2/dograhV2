@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   AlertTriangle,
   ArrowUpCircle,
   AudioLines,
@@ -143,6 +144,11 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "Billing",
         url: "/billing",
         icon: CircleDollarSign,
+      },
+      {
+        title: "Analytics",
+        url: "/analytics",
+        icon: BarChart3,
       },
       {
         title: "Reports",

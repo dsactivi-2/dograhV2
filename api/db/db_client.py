@@ -21,6 +21,7 @@ from api.db.workflow_run_client import WorkflowRunClient
 from api.db.workflow_run_text_session_client import WorkflowRunTextSessionClient
 from api.db.workflow_template_client import WorkflowTemplateClient
 from api.db.stepsales_client import StepsalesClient
+from api.db.outcomes_client import OutcomesClient
 
 
 class DBClient(
@@ -47,6 +48,7 @@ class DBClient(
     TelephonyPhoneNumberClient,
     FolderClient,
     StepsalesClient,
+    OutcomesClient,
 ):
     """
     Unified database client that combines all specialized database operations.
