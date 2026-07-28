@@ -20,6 +20,7 @@ from api.db.workflow_recording_client import WorkflowRecordingClient
 from api.db.workflow_run_client import WorkflowRunClient
 from api.db.workflow_run_text_session_client import WorkflowRunTextSessionClient
 from api.db.workflow_template_client import WorkflowTemplateClient
+from api.db.stepsales_client import StepsalesClient
 
 
 class DBClient(
@@ -45,6 +46,7 @@ class DBClient(
     TelephonyConfigurationClient,
     TelephonyPhoneNumberClient,
     FolderClient,
+    StepsalesClient,
 ):
     """
     Unified database client that combines all specialized database operations.
