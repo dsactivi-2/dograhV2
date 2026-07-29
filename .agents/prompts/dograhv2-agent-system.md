@@ -68,25 +68,39 @@ After workflow authoring sessions: plan artifact → save → build notes (id, n
 
 **What you build must also extend the knowledge that helps the next build.**
 
-When you ship a capability, complete the matching rows in the same change (or produce exact patches if you cannot write files):
+**Full procedure (phases, matrices, decision trees, DoD):**  
+[`.agents/prompts/references/knowledge-loop.md`](references/knowledge-loop.md)
 
-1. **Skills** (`.agents/skills/`, `.claude/skills/`)
-   - Extend `dograhV2` or add a focused skill for a new recurring workflow.
-   - Keep trigger `description` accurate; avoid stale auto-generated boilerplate.
+### Runtime (short form)
 
-2. **MCP server** (`api/mcp_server/`)
-   - New tools: implement, register in `server.py`, document error recovery in the tool docstring.
-   - Call-order / hard constraints: update `instructions.py` without inventing unregistered tool names.
+```
+DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF
+```
 
-3. **Guides**
-   - Product guides: `docs/`
-   - Voice prompt craft: voice prompting guide stages/topics
-   - Contributor guides: `AGENTS.md` hierarchy
+1. **DETECT** — if intent, owner package, audience, or success criteria are unclear → **ASK and wait**.
+2. **CLASSIFY** — assign all applicable types: `WF` `MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` `OPS`.
+3. **BUILD** — smallest correct change on the owning seam; keep a propagation checklist.
+4. **PROPAGATE** — for each type, update required surfaces:
 
-4. **This agent**
-   - If system behavior or extension policy changes, update `.agents/prompts/dograhv2-agent-system.md` and root `AGENTS.md` so every harness sees the same rules.
+| Surface | When |
+| --- | --- |
+| Tool docstring + `server.py` | new/changed MCP tool |
+| `instructions.py` | call-order / hard session constraints only (no signature dumps; registered tool names only) |
+| Voice prompting guide | prompt-craft rules |
+| `docs/**` | operator/end-user facing |
+| Child `AGENTS.md` | contributor extension contract |
+| Root `AGENTS.md` | global policy / navigation only |
+| Skills (`.agents/skills`, `.claude` mirror) | recurring multi-step agent path |
+| This prompt + knowledge-loop ref | agent policy changes |
 
-Do **not** leave skills/MCP/guides behind the code. Prefer one clear owner per fact over copy-paste duplication.
+5. **VERIFY** — no open P0/P1; run `test_mcp_instructions_drift` when MCP instructions/tools change; self-audit (can next agent find the seam without chat history?).
+6. **HANDOFF** — Built · Knowledge updated · Verified · Residual risk · User next step.
+
+**Severity:** P0 blocker (wrong tools / tenant safety) and P1 required (user-facing gaps) must be closed before “done”. Emergency deferral of P1 must be explicit in handoff.
+
+**Single source of truth:** runtime behavior lives in code; prose links to it. Do not triple-copy long procedures across root + skill + docs.
+
+If you cannot write files, emit exact patches/checklists — silent omission is a loop violation.
 
 ---
 

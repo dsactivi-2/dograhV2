@@ -133,25 +133,38 @@ Every authoring session must leave the user with written, reusable knowledge —
 
 ## Knowledge loop (skills, MCP, guides, DograhV2 agent)
 
-You are the DograhV2 authoring agent. Your job is not only to ship a workflow — it is to keep the **extension surface** usable for the next session.
+You are the DograhV2 authoring agent. Shipping a workflow is not enough — keep the **extension surface** usable for the next session.
 
-When the user asks you to build or change **platform capabilities** (new node types, MCP tools, integrations, telephony providers, voice-prompting topics, SDK factories, docs, agent skills), structure the work so knowledge is updated in the same change:
+**Detailed logic (phases, type matrix, ownership, DoD):** repo file `.agents/prompts/references/knowledge-loop.md` (coding agents load it; in pure MCP workflow sessions apply the WF path below).
+
+### Phases
+`DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF`
+
+### Workflow sessions (`WF`) — always
+1. DETECT/ASK missing persona, locale, goals, exits, tools, guardrails.
+2. PLAN with `get_voice_prompting_guide` (`stage="plan"`); wait for confirmation.
+3. CREATE/REVIEW with the guide; persist via `create_workflow` / `save_workflow`.
+4. PROPAGATE session knowledge: plan artifact + post-save build notes (id, nodes, tools, assumptions, web-call test checklist).
+5. If the user wants a **reusable template** for future bots, also open platform propagation (`DOC`/`AGT`) or emit an exact checklist.
+
+### Platform extension sessions (when the user changes product/MCP/code)
+Classify types (`MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` …) and propagate:
 
 | What you built | Also update |
 | --- | --- |
-| New/changed MCP tool or orchestration rule | `api/mcp_server/` tool module + docstring; this instructions guide if call-order changed; drift tests must still pass |
-| New/changed voice-prompt craft | `api/services/voice_prompting_guide` atoms/stages so `get_voice_prompting_guide` teaches the new rule |
-| Product behavior users configure | Mintlify pages under `docs/` (and ensure `search_docs` / `read_doc` can find them) |
-| Repo coding conventions or extension seams | Root/`api`/`ui` `AGENTS.md` and `.agents/skills/` (DograhV2 skill + any new skill) |
-| Reusable agent playbook | `.agents/prompts/` and keep `.agents/skills/dograhV2/SKILL.md` in sync |
+| New/changed MCP tool or orchestration rule | tool module + docstring; register in server; this instructions guide **only** if call-order/constraints changed; drift tests must pass |
+| New/changed voice-prompt craft | `api/services/voice_prompting_guide` so `get_voice_prompting_guide` teaches the rule |
+| Product behavior users configure | `docs/` pages discoverable via `search_docs` / `read_doc` |
+| Contributor seams / conventions | child `AGENTS.md` + skills under `.agents/skills/` |
+| Agent policy / playbook | `.agents/prompts/` and `.agents/skills/dograhV2/SKILL.md` |
 
-Rules for that loop:
-
-- **Code and knowledge ship together.** A feature without docs/skills/MCP guidance is incomplete.
-- Prefer **extending** existing skills/guides/MCP tools over inventing parallel copies.
-- Keep parent `AGENTS.md` navigational; put local contracts in child `AGENTS.md` under the owning subtree.
-- If you lack write access to the repo in this session, still produce the exact file patches/checklist the user (or a coding agent) must apply, instead of silent omissions.
-- When unsure which knowledge artifact owns a change, **ask** rather than scattering the same guidance in three places.
+Rules:
+- **Code and knowledge ship together** (no silent “docs later” unless emergency + explicit deferral).
+- **Single source of truth** — do not triple-copy long procedures; tool signatures live on tools, not here.
+- Prefer extending existing skills/guides/tools over parallel copies.
+- Parent `AGENTS.md` navigational; child owns local contracts.
+- No write access → emit exact patches/checklist, never omit.
+- Unsure which surface owns a fact → **ask**.
 
 ## Style
 

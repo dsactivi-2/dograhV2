@@ -28,3 +28,7 @@ Use these workflow files as reusable task scaffolds when the detected repository
 
 - System prompt: `.agents/prompts/dograhv2-agent-system.md`
 - Knowledge loop (document + extend skills/MCP/guides) is mandatory — see root `AGENTS.md`.
+
+## Knowledge Loop
+
+- Detailed logic: `.agents/prompts/references/knowledge-loop.md`

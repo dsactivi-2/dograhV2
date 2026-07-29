@@ -1,57 +1,71 @@
 ---
 name: dograhV2
-description: "Build and extend DograhV2 voice AI (platform code, MCP, workflows, docs, skills). Use when working in dograhV2, adding MCP tools, integrations, telephony, voice workflows, guides, or agent knowledge. Triggers — dograhV2, Dograh MCP, voice workflow, extend skill, document what you build."
+description: "Build and extend DograhV2 voice AI (platform code, MCP, workflows, docs, skills). Use when working in dograhV2, adding MCP tools, integrations, telephony, voice workflows, guides, or running the Knowledge Loop. Triggers — dograhV2, Dograh MCP, knowledge loop, voice workflow, extend skill, document what you build."
 ---
 
 # dograhV2 — Build & Knowledge Loop
 
-Help the user build DograhV2 features and voice agents. **Every build extends knowledge**: document what you ship; update skills, MCP, guides, and the DograhV2 agent prompt when the extension surface changes. **Ask** when requirements are unclear.
+Help the user build DograhV2 features and voice agents. **Every reusable build runs the Knowledge Loop.** Ask when unclear.
 
-## Before coding
+## Load first
 
-1. Read root `AGENTS.md` and the nearest child `AGENTS.md` for the subtree you touch.
-2. For MCP authoring sessions, follow `api/mcp_server/instructions.py`.
-3. Full system prompt: `.agents/prompts/dograhv2-agent-system.md`.
+1. Root `AGENTS.md` + nearest child `AGENTS.md`
+2. **Detailed Knowledge Loop:** `.agents/prompts/references/knowledge-loop.md`
+3. System prompt: `.agents/prompts/dograhv2-agent-system.md`
+4. MCP sessions: `api/mcp_server/instructions.py`
 
-## Hard rules
+## Knowledge Loop (summary)
 
-1. **Ask when unclear** — no invented business/compliance/telephony facts; short questions beat wrong builds.
-2. **Document everything** — `docs/` for users, `AGENTS.md` for contributors, tool docstrings + `instructions.py` for MCP orchestration, voice prompting guide for prompt craft.
-3. **Knowledge loop** — code + skills + MCP + guides + agent prompt ship together when the capability is reusable.
-4. **Prefer extension** — extend existing skills/guides/tools; do not fork parallel copies.
+```
+DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF
+```
 
-## Where things live
-
-| Concern | Path |
+| Phase | Do |
 | --- | --- |
-| API / services | `api/` |
-| MCP tools + instructions | `api/mcp_server/` |
-| Voice prompting guide | `api/services/voice_prompting_guide` |
-| UI | `ui/` |
-| User guides | `docs/` |
-| Skills | `.agents/skills/` |
-| Agent system prompt | `.agents/prompts/dograhv2-agent-system.md` |
-| Integrations seam | `api/services/integrations/` |
-| Telephony seam | `api/services/telephony/` |
+| DETECT | Triggered by new behavior/API/MCP/docs/skills; if unclear → ASK |
+| CLASSIFY | Types: `WF` `MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` `OPS` |
+| BUILD | Owning package seam; maintain propagation checklist |
+| PROPAGATE | Apply type→surface matrix in knowledge-loop.md |
+| VERIFY | No open P0/P1; MCP drift test if MCP touched |
+| HANDOFF | Built · knowledge · verified · risks · user next step |
 
-## Workflow checklist (platform change)
+### Surfaces
 
-1. Clarify goal and owning package (ask if needed).
-2. Implement the smallest correct change.
-3. Update docs / `AGENTS.md` / MCP / guide / skill as required by the knowledge loop.
-4. Run relevant tests (`api/tests/test_mcp_instructions_drift.py` if MCP instructions or tools changed).
-5. Summarize: built · knowledge updated · how to verify · open questions.
+| ID | Path |
+| --- | --- |
+| S_CODE | runtime source |
+| S_DOCS | `docs/**` |
+| S_CHILD / S_ROOT | nested / root `AGENTS.md` |
+| S_MCP_T / S_MCP_I | tool docstrings / `instructions.py` |
+| S_VPG | `api/services/voice_prompting_guide` |
+| S_SKILL / S_PROMPT | `.agents/skills/**` / `.agents/prompts/**` |
 
-## Workflow checklist (voice agent via MCP)
+### Hard rules
 
-1. Plan with `get_voice_prompting_guide` (`stage=plan`); ask contextual questions; get confirmation.
-2. Create with guide (`stage=create` / `node_type` / `topic=common_guidelines` for globalNode).
-3. `create_workflow` or `save_workflow`; iterate on full source after errors.
-4. Review with `stage=review`.
-5. Deliver build notes (id, nodes, tools, test checklist).
+1. Ask when unclear — no invented business/compliance/telephony facts.
+2. Document everything reusable in the same change.
+3. Code without knowledge is incomplete (explicit emergency deferral only).
+4. Single source of truth — no triple-copy of long procedures.
+5. Prefer extending existing skills/guides/tools.
+
+## Checklists
+
+### Platform change
+1. Clarify goal + owner (ask if needed) → classify types
+2. Implement smallest correct change
+3. Propagate per matrix in knowledge-loop.md
+4. Verify (incl. `api/tests/test_mcp_instructions_drift.py` if MCP)
+5. Handoff report
+
+### Voice agent via MCP (`WF`)
+1. Plan: `get_voice_prompting_guide` `stage=plan` + questions + confirmation
+2. Create: guide `stage=create` / `node_type` / `topic=common_guidelines` for globalNode
+3. `create_workflow` or `save_workflow`; full source on errors
+4. Review: `stage=review`
+5. Build notes + test checklist; template request → also DOC/AGT
 
 ## Do not
-
-- Ship features with silent knowledge drift (stale skills/docs/MCP guide).
-- Name unregistered MCP tools in `instructions.py`.
-- Put secrets or private MCP configs in the repo.
+- Ship with silent knowledge drift
+- Name unregistered MCP tools in `instructions.py`
+- Put secrets in the repo
+- Skip ASK when success criteria are unknown

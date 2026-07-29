@@ -70,23 +70,37 @@ Ship code and written knowledge in the **same change**:
 
 ### 3. Knowledge loop — extend skills, MCP, guides, and the DograhV2 agent
 
-When you add or change a capability the user (or another agent) will reuse, **also** extend the knowledge surface:
+**Authoritative detailed logic:** [`.agents/prompts/references/knowledge-loop.md`](.agents/prompts/references/knowledge-loop.md)
+
+Phases (every reusable change): **DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF**.
+
+| Phase | Rule |
+| --- | --- |
+| DETECT | Unclear intent/owner/success criteria → **ASK and wait** |
+| CLASSIFY | Tag change types (`WF` `MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` `OPS`) |
+| BUILD | Own the correct package seam; keep a propagation checklist open |
+| PROPAGATE | Update every required knowledge surface for those types (matrix in the reference) |
+| VERIFY | No open P0/P1; MCP drift test if MCP touched; self-audit questions |
+| HANDOFF | Built · knowledge updated · verified · residual risk · user next step |
+
+Quick map (built → also update):
 
 | Built / changed | Also update |
 | --- | --- |
-| Platform feature, API, integration, telephony provider | Owning `AGENTS.md` + `docs/` page if users configure it |
-| MCP tool or authoring orchestration | Tool module + docstring; `instructions.py` if call order changes; keep `test_mcp_instructions_drift` green |
-| Voice-prompting guidance | Voice prompting guide atoms/stages |
-| Recurring coding workflow | `.agents/skills/` (extend `dograhV2` or add a focused skill) |
-| Agent system behavior | `.agents/prompts/dograhv2-agent-system.md` and keep skills in sync |
+| Platform feature / API / integration / telephony | Owning child `AGENTS.md` + `docs/` if user-facing |
+| MCP tool or authoring orchestration | Tool docstring; `instructions.py` only if call-order changes; drift test green |
+| Voice-prompt craft | `api/services/voice_prompting_guide` |
+| Recurring agent workflow | `.agents/skills/` (extend `dograhV2` or add focused skill) |
+| Agent policy | `.agents/prompts/` + this file (short); details only in knowledge-loop ref |
 
 Rules:
 
-- **Code without knowledge is incomplete.** Do not leave skills, MCP, guides, or `AGENTS.md` stale relative to the code you just wrote.
-- Prefer **extending** existing skills/guides over duplicating parallel docs.
-- Keep secrets and private MCP configs out of the repo.
-- Full system prompt for the DograhV2 coding agent: [`.agents/prompts/dograhv2-agent-system.md`](.agents/prompts/dograhv2-agent-system.md).
-- Repo skill entrypoint: [`.agents/skills/dograhV2/SKILL.md`](.agents/skills/dograhV2/SKILL.md).
+- **Code without knowledge is incomplete** — silent “docs later” is a loop violation unless emergency + explicit deferral in handoff.
+- **Single source of truth** — runtime = code; do not triple-copy long procedures across root skill and docs.
+- Prefer **extending** existing skills/guides over parallel copies.
+- No secrets / private MCP configs in repo.
+- System prompt: [`.agents/prompts/dograhv2-agent-system.md`](.agents/prompts/dograhv2-agent-system.md)
+- Skill: [`.agents/skills/dograhV2/SKILL.md`](.agents/skills/dograhV2/SKILL.md)
 
 ### 4. Child scopes
 
