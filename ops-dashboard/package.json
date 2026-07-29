@@ -14,7 +14,12 @@
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "eval:setup": "node eval/scripts/print-setup.mjs",
+    "eval:deepeval": "python3 eval/python/run_deepeval.py",
+    "eval:ragas": "python3 eval/python/run_ragas.py",
+    "eval:promptfoo": "npx --yes promptfoo eval -c eval/promptfoo.yaml",
+    "eval:manifest": "node -e \"console.log(JSON.stringify(require(\"./eval/manifest.json\"),null,2))\""
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.3",

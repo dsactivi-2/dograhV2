@@ -1,74 +1,108 @@
 # Eval & optimization tool stack
 
-Groundwork for the semi-automatic improvement loop. The **Optimization** page (`/optimize`) is the P0 product surface; this folder is the offline/CI foundation.
+First-class offline evaluation for the Dograh Ops Dashboard.
 
-## Data correctness (dashboard)
+| Entry point | Path |
+| --- | --- |
+| **Registry** | [`manifest.json`](./manifest.json) |
+| **User guide** | [`docs/user/eval-tools.md`](../docs/user/eval-tools.md) |
+| **Env reference** | [`docs/ENV.md`](../docs/ENV.md) · [`.env.example`](../.env.example) |
+| **Skills** | [`skills/eval-deepeval`](../skills/eval-deepeval/SKILL.md), [`skills/eval-ragas`](../skills/eval-ragas/SKILL.md) |
+| **Agent profile** | [`agents/AGENTS.md`](../agents/AGENTS.md) |
+| **MCP notes** | [`mcp-notes.md`](./mcp-notes.md) |
+| **UI** | Optimize → Evaluation tools |
 
-Parser **v2** (`src/lib/dograh/qa.ts`):
+## Mental model
 
-| Field | Source | Aggregation |
-| --- | --- | --- |
-| Dimensions | `annotations.qa_*/node_results[*].raw_response.scores` | Mean across QA nodes (sample size tracked) |
-| Overall | Dograh `overall_score` per node | **Mean of node overalls** (not re-derived from dimensions) |
-| Sales / Delivery / Safety | Our category keys | Mean of present dims; needs ≥ half of keys |
-| Tags | Prefer `annotations.tags` | Call-level authoritative |
-| Prompt tokens | `usage_info.llm[*].prompt_tokens` | Sum per run; scoreboard averages sums |
-| Unscored runs | Missing QA | **Excluded** from averages (never treated as 0) |
+```text
+Dograh live QA  ──►  Optimize scoreboard   (primary production truth)
+       │
+       ├── Promptfoo   text regression gates (Node)
+       ├── DeepEval    offline transcript judge (Python)
+       └── Ragas       knowledge faithfulness (Python)
+```
 
-See **Data integrity** panel on `/optimize` for live warnings.
+UI toggles **discover and configure** tools; they do **not** execute Python inside the browser.
 
-## Tools
+---
 
-| Piece | Path | Status |
-| --- | --- | --- |
-| Dograh QA parser | `src/lib/dograh/qa.ts` | Live (v2) |
-| Optimization UI | `/optimize` | Live |
-| Rubric | `eval/rubric.json` | Ready |
-| LLM-as-judge prompt | `eval/judge-prompt.md` | Ready |
-| Promptfoo | `eval/promptfoo.yaml` | Scaffold |
-| DeepEval | `eval/python/run_deepeval.py` | Offline, gated `EVAL_DEEPEVAL=true` |
-| Ragas | `eval/python/run_ragas.py` | Offline, gated `EVAL_RAGAS=true` |
-| Langfuse Metrics API | server `fetchLangfuseMetrics` | Needs `LANGFUSE_*` secrets |
-| CI | `.github/workflows/eval.yml` | Scaffold |
-| Sim personas V2 | `eval/personas/`, `docs/sim-customer-v2.md` | Plan + samples |
-
-## Install offline Python stack
+## npm scripts (from project root)
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+npm run eval:setup      # print install instructions
+npm run eval:deepeval -- --dry-run --text "BOT: Hi. USER: Stop."
+npm run eval:ragas -- --dry-run --question "Q" --answer "A" --contexts "ctx"
+npm run eval:promptfoo  # requires promptfoo + optional OPENAI_API_KEY
+```
+
+---
+
+## DeepEval
+
+**Purpose:** Shadow-score a full sales transcript against `eval/rubric.json` (aligned with Dograh’s 20 dimensions).
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r eval/python/requirements.txt
 export EVAL_DEEPEVAL=true OPENAI_API_KEY=...
-python eval/python/run_deepeval.py --text "BOT: ... USER: ..."
+npm run eval:deepeval -- --transcript ./call.txt
+npm run eval:deepeval -- --text "..." --json-out ./tmp/deepeval.json
 ```
+
+- Entry: `eval/python/run_deepeval.py`  
+- Skill: `skills/eval-deepeval/SKILL.md`  
+- Gate: `EVAL_DEEPEVAL=true`  
+
+---
+
+## Ragas
+
+**Purpose:** Faithfulness + answer relevancy when the agent uses KB / product facts.
+
+```bash
+export EVAL_RAGAS=true OPENAI_API_KEY=...
+npm run eval:ragas -- \
+  --question "Koliko košta?" \
+  --answer "99 KM." \
+  --contexts "Cijena 99 KM"
+```
+
+- Entry: `eval/python/run_ragas.py`  
+- Skill: `skills/eval-ragas/SKILL.md`  
+- Gate: `EVAL_RAGAS=true`  
+
+---
 
 ## Promptfoo
 
 ```bash
-npm i -D promptfoo   # optional
 npx promptfoo eval -c eval/promptfoo.yaml
+# or: npm run eval:promptfoo
 ```
 
-## Langfuse Metrics
+Config: `eval/promptfoo.yaml` · Rubric: `eval/rubric.json` · Judge: `eval/judge-prompt.md`
 
-Dograh’s `langfuse-credentials` endpoint returns **masked** keys. For aggregated trends in the dashboard:
+---
 
-```env
-LANGFUSE_HOST=https://cloud.langfuse.com
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-```
+## Data correctness (dashboard)
 
-Toggle **Langfuse metrics** on Optimize → Evaluation tools.
+Parser **v2** (`src/lib/dograh/qa.ts`) — see Optimize **Data integrity** panel.
 
-## CI next steps (actionable)
+| Field | Source |
+| --- | --- |
+| Dimensions / overall | Dograh `annotations.qa_*` raw_response |
+| Tags | Prefer `annotations.tags` |
+| Prompt tokens | `usage_info.llm[*].prompt_tokens` |
+| Sales/Delivery/Safety | Derived category means (labeled in UI) |
 
-1. Push this repo to GitHub.  
-2. Add secrets: `OPENAI_API_KEY` (Promptfoo/DeepEval), optional `LANGFUSE_*`.  
-3. Enable `.github/workflows/eval.yml` (already scaffolds Promptfoo on `eval/**` changes).  
-4. Optional job: `pip install -r eval/python/requirements.txt` + DeepEval on sample fixtures.  
-5. Fail PRs that break hard gates (`order_safety`, DNC persona text fixtures).
+---
 
-## Sim customers V2
+## CI
 
-See [`docs/sim-customer-v2.md`](../docs/sim-customer-v2.md). Personas in `eval/personas/`.
+`.github/workflows/eval.yml` — Promptfoo scaffold + typecheck; optional DeepEval job when `RUN_DEEPEVAL=true`.
+
+---
+
+## Personas (sim V2)
+
+`eval/personas/` — JSON personas for future live sim customers. See `docs/sim-customer-v2.md`.
