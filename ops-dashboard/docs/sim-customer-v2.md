@@ -19,53 +19,86 @@ Real Dograh **sales** workflow places a **live voice call** to a **simulated cus
                                             → Optimize dashboard
 ```
 
-## Components to build
+## Components
 
-| Piece | Responsibility | Suggested tech |
-| --- | --- | --- |
-| **Persona bank** | Name, language, objections, buy intent, DNC | JSON in `eval/personas/` |
-| **Customer gateway** | Answer SIP/WebRTC, run persona | Twilio Media Streams **or** LiveKit SIP (you already have LiveKit-related Workers) |
-| **Persona LLM** | Next customer utterance | GPT/Azure with system prompt = persona |
-| **TTS / STT** | Voice in/out | Azure / Deepgram / same stack as Dograh |
-| **Launcher** | Dashboard or CLI: pick persona → trigger Dograh test call to gateway number | `POST .../public/agent/test/workflow/{uuid}` |
-| **Tagging** | `initial_context.test_run=true`, `persona_id` | Filter in Optimize later |
+| Piece | Responsibility | Suggested tech | Status |
+| --- | --- | --- | --- |
+| **Persona bank** | Name, language, objections, buy intent, DNC | `eval/personas/*.json` | Ready (3 samples) |
+| **Customer gateway** | Answer SIP/WebRTC, run persona | Twilio Media Streams **or** LiveKit SIP | **Not built** — needs your number |
+| **Persona LLM** | Next customer utterance | Azure/OpenAI | Config pending |
+| **TTS / STT** | Voice in/out | Azure / Deepgram | Config pending |
+| **Launcher** | Trigger sales → gateway number | `POST .../public/agent/test/workflow/{uuid}` | API exists; CLI not wired |
+| **Tagging** | `test_run`, `persona_id` in context | Dograh initial_context | Spec ready |
 
 ## Dograh API already usable
 
 ```http
 POST /api/v1/public/agent/test/workflow/{workflow_uuid}
-{ "phone_number": "+387…", "initial_context": { "customer_name": "Amir Kovač", "persona_id": "soft_yes_bs", "test_run": true } }
+{
+  "phone_number": "+387…",
+  "initial_context": {
+    "customer_name": "Amir Kovač",
+    "persona_id": "soft_yes_bs",
+    "test_run": true
+  }
+}
 ```
 
-## Implementation phases
+The sales agent **calls out**. Something must **answer** that number as the customer.
 
-### Phase A — Scaffold (this repo, now)
+## What is ready vs missing for first real test calls
 
-- [x] Doc + persona schema (`eval/personas/schema.json`, sample personas)
-- [x] Env placeholders for customer gateway number
-- [ ] No production auto-calls from dashboard yet (safety)
+### Ready in this project
 
-### Phase B — Minimal live loop
+- [x] Personas: `soft_yes_bs`, `price_objector_bs`, `dnc_bs`
+- [x] Architecture + safety rules
+- [x] Optimize page to score real runs after the call
+- [x] Dograh public test-call endpoint (on your instance)
 
-1. Provision one Twilio/SIP number (or LiveKit inbound).  
-2. Deploy `customer-gateway` Worker that: answers → STT → persona LLM → TTS.  
-3. CLI: `npm run sim:call -- --persona soft_yes_bs` → Dograh test API.  
-4. Verify run appears with QA on Optimize.
+### Missing from you (blockers)
 
-### Phase C — Dashboard launcher
+| # | Item | Why |
+| --- | --- | --- |
+| 1 | **Inbound phone number** that we control | Customer bot must answer |
+| 2 | **Stack choice**: Twilio vs LiveKit SIP vs other | Determines gateway code |
+| 3 | **Credentials** for that stack | Account SID/token or LiveKit SIP trunk |
+| 4 | **Sales workflow UUID** (or id) under test | Target of `public/agent/test` |
+| 5 | **LLM + TTS + STT keys** for the *customer* side (or confirm reuse of Azure) | Customer voice pipeline |
+| 6 | **Explicit OK** to place outbound test calls from Dograh | Safety / cost |
 
-- Optimize UI: “Run sim call” (opt-in, double confirm).  
-- Lists personas; shows last sim run link.
+### Missing in code (we build after #1–6)
+
+| Piece | Effort once credentials exist |
+| --- | --- |
+| Customer gateway service (answer + STT/LLM/TTS) | 1–3 days |
+| Wire `npm run sim:call -- --persona …` | Hours |
+| Tag filter `test_run` on Optimize | Hours |
+| Optional dashboard “Run sim call” button | Half day |
+
+## Recommended first live path (fastest)
+
+1. Provision **one Twilio number** dedicated to sim customers.  
+2. Minimal Twilio Media Stream webhook → Node/Python: STT → persona LLM → TTS.  
+3. CLI triggers Dograh test call **to that Twilio number**.  
+4. Human listens once; then fully automated.  
+5. Inspect run on Optimize + Langfuse.
+
+Alternative if you already use LiveKit heavily: inbound SIP on LiveKit + same persona loop.
 
 ## Safety
 
-- Never enable mass outbound from sim without allowlist.  
-- Separate telephony config / number for test.  
-- Tag all sim runs so they never mix into production KPI exports.
+- Separate number from production leads.  
+- Always set `test_run: true` in context.  
+- No mass dial without allowlist.  
+- Human approval for any dashboard “launch call” UI.
 
-## What you need to provide
+## Decision checklist for you
 
-1. Inbound number for the customer bot (Twilio/SIP credentials).  
-2. Confirmation of preferred stack: **Twilio** vs **LiveKit**.  
-3. LLM/TTS keys if not reusing Azure from Dograh.  
-4. Workflow UUID for production sales agent under test.
+```text
+[ ] Twilio  OR  LiveKit SIP  OR  other: ________
+[ ] Inbound number: +_______________
+[ ] Sales workflow UUID: _______________
+[ ] Customer LLM: Azure / OpenAI / other
+[ ] Customer TTS/STT: same as Dograh? yes/no
+[ ] Approve first real test call: yes/no
+```

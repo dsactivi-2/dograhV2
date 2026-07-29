@@ -1,50 +1,84 @@
-# Dograh Ops Dashboard
+# Dograh Live Operations Dashboard
 
-Standalone **read-only** operations & optimization dashboard for a Dograh / DograhV2 instance.
+Standalone **read-only** operations dashboard for monitoring outbound campaigns on a self-hosted (or cloud) [Dograh](https://github.com/dograh-hq/dograh) instance.
 
-Lives as `ops-dashboard/` inside [dsactivi-2/dograhV2](https://github.com/dsactivi-2/dograhV2) so platform code (`api/`, `ui/`, …) stays untouched.
-
-## Stack
-
-React 19 · TypeScript · TanStack Start · TanStack Query · Tailwind v4 · Recharts
-
-Talks to Dograh **only** via public REST (`X-API-Key`). Does not modify Dograh `ui/`.
+Talks to Dograh exclusively through the public REST API (`X-API-Key`). Does **not** modify the official Dograh `ui/` folder.
 
 ## Features
 
-- Overview: campaigns + workflows, live counters, date range
-- Campaign / workflow detail, run table, CSV export
-- Call detail: transcript, audio, graph (zoom/pan), tool calls, Open in Langfuse
-- **Optimization** page: QA scoreboard, worst runs, node drop-off, data integrity
-- Eval groundwork: Promptfoo, DeepEval, Ragas (offline), Langfuse metrics (env)
-- Sim customer personas (V2 plan under `docs/sim-customer-v2.md`)
+- **Overview** — live campaign widgets (running + paused), progress bars, failed counts, in-progress calls
+- **Global date range** — filters stats and run lists (Today / 7d / 30d / 90d / custom)
+- **Campaign detail** — live progress, success rate, cost & duration, disposition charts, paginated/filterable/sortable runs table, CSV export
+- **Call detail** — transcript, audio player, initial/gathered context JSON, cost breakdown, logs
+- **Live polling** — TanStack Query every ~7s with last-updated indicator
+- **Dark / light mode**
+- **Demo mode** — rich mock data when no API key is configured
 
-## Local run
+## Stack
+
+React 19 · TypeScript · TanStack Start / Router / Query / Table · Tailwind CSS v4 · Recharts · date-fns · Radix/shadcn-style UI
+
+> Built as a standalone TanStack Start app (Vite) rather than Next.js so it runs cleanly in this environment and deploys to Vercel. Architecture mirrors a typical App Router product: typed API client, server functions for secrets, client polling for live data.
+
+## Setup
+
+### 1. Environment
 
 ```bash
-cd ops-dashboard
 cp .env.example .env
-# set DOGRAH_API_URL, DOGRAH_API_KEY, DOGRAH_USE_MOCK=false
+```
+
+| Variable | Description |
+| --- | --- |
+| `DOGRAH_API_URL` | Base URL of your Dograh API (e.g. `http://localhost:3000` or `https://app.dograh.com`) |
+| `DOGRAH_API_KEY` | API key from Dograh **API Keys** page — sent as `X-API-Key` |
+| `DOGRAH_USE_MOCK` | `true` forces demo data; when the key is empty, mock is **on** by default |
+
+### 2. Install & run
+
+```bash
 npm install
 npm run dev
 ```
 
-## Vercel
+App listens on `http://0.0.0.0:8080`.
 
-- **Root Directory**: `ops-dashboard`
-- **Framework**: Vite / auto
-- **Build**: `npm run build`
-- **Env** (Production + Preview): see `.env.example`
+### 3. Production build
 
-## Env
+```bash
+npm run build
+npm run preview   # or deploy the Nitro/Vercel output
+```
 
-| Variable | Required | Purpose |
+## Dograh API surface used
+
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `DOGRAH_API_URL` | yes | Dograh base URL |
-| `DOGRAH_API_KEY` | yes | `X-API-Key` |
-| `DOGRAH_USE_MOCK` | no | `false` for live |
-| `LANGFUSE_PUBLIC_KEY` | no | Metrics API |
-| `LANGFUSE_SECRET_KEY` | no | Metrics API |
-| `LANGFUSE_HOST` | no | default `https://cloud.langfuse.com` |
+| `GET` | `/api/v1/campaign/` | List campaigns |
+| `GET` | `/api/v1/campaign/{id}` | Campaign detail |
+| `GET` | `/api/v1/campaign/{id}/progress` | Live progress |
+| `GET` | `/api/v1/campaign/{id}/runs` | Paginated runs (`page`, `limit`, `filters`, `sort_by`, `sort_order`) |
+| `GET` | `/api/v1/workflow/{workflow_id}/runs/{run_id}` | Full run (transcript, recording, context) |
 
-Never commit real secrets.
+Auth header: `X-API-Key: <key>`
+
+## Project layout
+
+```text
+src/
+  lib/dograh/          # Typed client, mock data, server functions, stats
+  lib/date-range.tsx   # Global date range provider
+  lib/theme.tsx        # Dark / light mode
+  components/          # UI + domain widgets
+  routes/              # Overview, campaign detail, call detail
+```
+
+## Scope notes
+
+- **Read-only** — no pause / resume / redial controls
+- Disposition primarily from `gathered_context.call_disposition`
+- Real-time via **polling only** (no WebSockets)
+
+## License
+
+Use freely alongside your Dograh deployment.

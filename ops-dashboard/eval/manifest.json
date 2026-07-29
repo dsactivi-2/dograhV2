@@ -1,0 +1,47 @@
+{
+  "name": "dograh-ops-eval",
+  "version": "1.0.0",
+  "description": "Offline evaluation stack for the Dograh Ops Dashboard — Promptfoo, DeepEval, Ragas, personas, QA rubric.",
+  "primaryScores": {
+    "source": "Dograh annotations.qa_* on live runs",
+    "parser": "src/lib/dograh/qa.ts",
+    "ui": "/optimize"
+  },
+  "tools": {
+    "promptfoo": {
+      "kind": "node",
+      "config": "eval/promptfoo.yaml",
+      "docs": "eval/README.md#promptfoo",
+      "npmScript": "eval:promptfoo",
+      "gateEnv": "EVAL_PROMPTFOO"
+    },
+    "deepeval": {
+      "kind": "python",
+      "entry": "eval/python/run_deepeval.py",
+      "requirements": "eval/python/requirements.txt",
+      "docs": "eval/README.md#deepeval",
+      "npmScript": "eval:deepeval",
+      "gateEnv": "EVAL_DEEPEVAL",
+      "skill": "skills/eval-deepeval/SKILL.md"
+    },
+    "ragas": {
+      "kind": "python",
+      "entry": "eval/python/run_ragas.py",
+      "requirements": "eval/python/requirements.txt",
+      "docs": "eval/README.md#ragas",
+      "npmScript": "eval:ragas",
+      "gateEnv": "EVAL_RAGAS",
+      "skill": "skills/eval-ragas/SKILL.md"
+    }
+  },
+  "artifacts": {
+    "rubric": "eval/rubric.json",
+    "judgePrompt": "eval/judge-prompt.md",
+    "personas": "eval/personas/",
+    "mcpNotes": "eval/mcp-notes.md"
+  },
+  "ui": {
+    "optimizeEvalPanel": "src/components/optimize/eval-tools-panel.tsx",
+    "toggles": "src/lib/eval/config.ts"
+  }
+}
