@@ -1,0 +1,11 @@
+node_modules
+.env
+.vercel
+
+
+.env
+.env.local
+.vercel
+node_modules
+.output
+dist
