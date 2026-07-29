@@ -117,8 +117,8 @@ function Download-File([string]$Url, [string]$Destination) {
 }
 
 function Download-BundleFileForRef([string]$Destination, [string]$RemotePath, [string]$Ref) {
-    $rawBase = "https://raw.githubusercontent.com/dograh-hq/dograh/$Ref"
-    $fallbackBase = 'https://raw.githubusercontent.com/dograh-hq/dograh/main'
+    $rawBase = "https://raw.githubusercontent.com/dsactivi-2/dograhV2/$Ref"
+    $fallbackBase = 'https://raw.githubusercontent.com/dsactivi-2/dograhV2/main'
 
     try {
         Download-File "$rawBase/$RemotePath" $Destination
@@ -225,7 +225,7 @@ if ($env:DOGRAH_SKIP_DOWNLOAD -ne '1') {
         Write-Info "[1/$TotalSteps] Downloading docker-compose.yaml..."
     }
 
-    Download-File 'https://raw.githubusercontent.com/dograh-hq/dograh/main/docker-compose.yaml' (Join-Path $CurrentDir 'docker-compose.yaml')
+    Download-File 'https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/docker-compose.yaml' (Join-Path $CurrentDir 'docker-compose.yaml')
     if ($UseCoturn) {
         Download-InitSupportBundle $CurrentDir 'main'
     }

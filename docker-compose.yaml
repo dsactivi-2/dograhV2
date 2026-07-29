@@ -1,4 +1,4 @@
-# Dograh deployment stack — driven by the helper scripts, not by a bare
+# DograhV2 deployment stack (upstream-compatible image names) — driven by the helper scripts, not by a bare
 # `docker compose up`.
 #
 # This stack needs a generated .env (secrets, public host/URL) and, for the
@@ -79,7 +79,7 @@ services:
 
   dograh-init:
     image: bash:5.2
-    container_name: dograh_init
+    container_name: dograhv2_init
     profiles: ["remote", "local-turn"]
     environment:
       ENVIRONMENT: "${ENVIRONMENT:-local}"

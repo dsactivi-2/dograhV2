@@ -1,4 +1,7 @@
-# Dograh AI
+# DograhV2
+
+> **公開フォーク/ミラー**（元: [Dograh](https://github.com/dograh-hq/dograh)）— [`dsactivi-2/dograhV2`](https://github.com/dsactivi-2/dograhV2)。  
+> ブランドは **DograhV2**。ランタイムのパッケージ/イメージ名は上流互換のままです。
 
 > 💡 **Notice**: This documentation is community-maintained. If you spot any translation inaccuracies or content that has drifted from the English version, please feel free to open a PR!
 >
@@ -86,7 +89,7 @@
 > リモートサーバーでプラットフォームを実行したい場合は、[ドキュメント](https://docs.dograh.com/deployment/docker#option-2:-remote-server-deployment)を参照してください。
 
 ```bash
-curl -o docker-compose.yaml https://raw.githubusercontent.com/dograh-hq/dograh/main/docker-compose.yaml && curl -o start_docker.sh https://raw.githubusercontent.com/dograh-hq/dograh/main/scripts/start_docker.sh && chmod +x start_docker.sh && ./start_docker.sh
+curl -o docker-compose.yaml https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/docker-compose.yaml && curl -o start_docker.sh https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/scripts/start_docker.sh && chmod +x start_docker.sh && ./start_docker.sh
 ```
 
 > **⚡ AI エージェントにセットアップを任せたいですか?**
@@ -204,7 +207,7 @@ Dograh AI は [BSD 2-Clause License](LICENSE) のもとで公開されていま�
 <br><br><br>
 
   <p align="center">
-    <a href="https://github.com/dograh-hq/dograh">⭐ GitHub で Star する</a> |
+    <a href="https://github.com/dsactivi-2/dograhV2">⭐ GitHub で Star する</a> |
     <a href="https://app.dograh.com">☁️ クラウド版を試す</a> |
     <a href="https://join.slack.com/t/dograh-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g">💬 Slack に参加</a>
   </p>

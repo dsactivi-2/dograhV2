@@ -1,13 +1,13 @@
-# dograh-sdk
+# dograhv2-sdk (import: dograh_sdk)
 
-Typed builder for Dograh voice-AI workflows. Fetches the node-spec catalog from
+Typed builder for DograhV2 / Dograh voice-AI workflows. Fetches the node-spec catalog from
 the Dograh backend at session start, validates every call against it at the
 call site, and produces `ReactFlowDTO`-compatible JSON.
 
 ## Install
 
 ```bash
-pip install dograh-sdk
+pip install dograhv2-sdk  # or: pip install -e sdk/python/
 ```
 
 For local development against a checked-out monorepo:

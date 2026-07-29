@@ -1,11 +1,11 @@
-# Dograh - Project Overview
+# DograhV2 - Project Overview
 
-Dograh is a voice AI platform for building and deploying conversational AI agents with telephony and WebRTC support.
+DograhV2 is a public fork of Dograh — a voice AI platform for building and deploying conversational AI agents with telephony and WebRTC support.
 
 ## Project Structure
 
 ```
-dograh/
+dograhV2/
 ├── api/              # Backend - FastAPI application
 ├── ui/               # Frontend - Next.js application
 ├── scripts/          # Helper scripts for local development

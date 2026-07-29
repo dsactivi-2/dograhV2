@@ -1,4 +1,7 @@
-# Dograh AI
+# DograhV2
+
+> **公开分支/镜像**，源自 [Dograh](https://github.com/dograh-hq/dograh)，仓库 [`dsactivi-2/dograhV2`](https://github.com/dsactivi-2/dograhV2)。  
+> 本仓库品牌为 **DograhV2**。运行时包/镜像名保持与上游兼容。
 
 > 💡 **Notice**: This documentation is community-maintained. If you spot any translation inaccuracies or content that has drifted from the English version, please feel free to open a PR!
 >
@@ -82,7 +85,7 @@
 > 如果希望在远程服务器上运行该平台,请参考[文档](https://docs.dograh.com/deployment/docker#option-2:-remote-server-deployment)。
 
 ```bash
-curl -o docker-compose.yaml https://raw.githubusercontent.com/dograh-hq/dograh/main/docker-compose.yaml && REGISTRY=ghcr.io/dograh-hq ENABLE_TELEMETRY=true docker compose up --pull always
+curl -o docker-compose.yaml https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/docker-compose.yaml && REGISTRY=ghcr.io/dograh-hq ENABLE_TELEMETRY=true docker compose up --pull always
 ```
 
 > **⚡ 想让 AI 智能体帮你完成部署?**
@@ -195,7 +198,7 @@ Dograh AI 基于 [BSD 2-Clause 协议](LICENSE)开源 —— 与构建 Dograh AI
 <br><br><br>
 
   <p align="center">
-    <a href="https://github.com/dograh-hq/dograh">⭐ 给我们一个 Star</a> |
+    <a href="https://github.com/dsactivi-2/dograhV2">⭐ 给我们一个 Star</a> |
     <a href="https://app.dograh.com">☁️ 试用云端版本</a> |
     <a href="https://join.slack.com/t/dograh-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g">💬 加入 Slack</a>
   </p>

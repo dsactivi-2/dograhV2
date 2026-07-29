@@ -99,7 +99,7 @@ export default function OverviewPage() {
                             </Button>
                             <Button asChild variant="outline">
                                 <a
-                                    href="https://github.com/dograh-hq/dograh/issues"
+                                    href="https://github.com/dsactivi-2/dograhV2/issues"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >

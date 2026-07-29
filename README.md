@@ -1,4 +1,7 @@
-# Dograh AI
+# DograhV2
+
+> **Public fork/mirror** of [Dograh](https://github.com/dograh-hq/dograh) maintained as [`dsactivi-2/dograhV2`](https://github.com/dsactivi-2/dograhV2).  
+> Branding here is **DograhV2**. Runtime package/image names stay upstream-compatible (`@dograh/sdk`, `dograhai/dograh-api`, …) so prebuilt installs keep working.
 
 **The open-source, self-hostable alternative to Vapi & Retell** — build production voice agents with a visual workflow builder, test them in minutes, and let AI coding assistants help design and edit them through MCP.
 
@@ -73,7 +76,7 @@ An honest comparison on the axes that matter most to teams evaluating voice AI p
 
 ## 🚀 Get Started
 
-##### Download and setup Dograh on your Local Machine
+##### Download and setup DograhV2 on your Local Machine
 
 > **Note**
 > We collect anonymous usage data to improve the product. You can opt out by setting `ENABLE_TELEMETRY=false` before running the startup script.
@@ -82,7 +85,7 @@ An honest comparison on the axes that matter most to teams evaluating voice AI p
 > If you wish to run the platform on a remote server instead, checkout our [Documentation](https://docs.dograh.com/deployment/docker#option-2:-remote-server-deployment)
 
 ```bash
-curl -o docker-compose.yaml https://raw.githubusercontent.com/dograh-hq/dograh/main/docker-compose.yaml && curl -o start_docker.sh https://raw.githubusercontent.com/dograh-hq/dograh/main/scripts/start_docker.sh && chmod +x start_docker.sh && ./start_docker.sh
+curl -o docker-compose.yaml https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/docker-compose.yaml && curl -o start_docker.sh https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/scripts/start_docker.sh && chmod +x start_docker.sh && ./start_docker.sh
 ```
 
 > **⚡ Prefer an AI agent to set it up for you?**
@@ -203,7 +206,7 @@ Founded by YC alumni and exit founders committed to keeping voice AI open and ac
 <br><br><br>
 
   <p align="center">
-    <a href="https://github.com/dograh-hq/dograh">⭐ Star us on GitHub</a> |
+    <a href="https://github.com/dsactivi-2/dograhV2">⭐ Star us on GitHub</a> |
     <a href="https://app.dograh.com">☁️ Try Cloud Version</a> |
     <a href="https://join.slack.com/t/dograh-community/shared_invite/zt-3zjb5vwvl-j7hRz3_F1SOn5cH~jm5f5g">💬 Join Slack</a>
   </p>

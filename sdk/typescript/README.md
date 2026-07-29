@@ -1,6 +1,6 @@
 # @dograh/sdk
 
-Typed builder for Dograh voice-AI workflows. Fetches the node-spec catalog from
+Typed builder for DograhV2 / Dograh voice-AI workflows. Fetches the node-spec catalog from
 the Dograh backend at session start, validates every call against it at the
 call site, and produces wire-format JSON that round-trips through the Python
 `ReactFlowDTO`.

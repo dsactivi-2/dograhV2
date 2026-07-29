@@ -14,7 +14,7 @@ BOOTSTRAP_LIB=""
 
 if [[ ! -f "$LIB_PATH" ]]; then
     BOOTSTRAP_LIB="$(mktemp)"
-    curl -fsSL -o "$BOOTSTRAP_LIB" "https://raw.githubusercontent.com/dograh-hq/dograh/main/scripts/lib/setup_common.sh"
+    curl -fsSL -o "$BOOTSTRAP_LIB" "https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/scripts/lib/setup_common.sh"
     LIB_PATH="$BOOTSTRAP_LIB"
 fi
 
@@ -293,7 +293,7 @@ else
         cd dograh
 
         echo -e "${BLUE}[1/$TOTAL] Downloading deployment bundle...${NC}"
-        curl -fsSL -o docker-compose.yaml "https://raw.githubusercontent.com/dograh-hq/dograh/main/docker-compose.yaml"
+        curl -fsSL -o docker-compose.yaml "https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/docker-compose.yaml"
         dograh_download_remote_support_bundle "$(pwd)" "main"
         echo -e "${GREEN}✓ Deployment bundle downloaded${NC}"
     else

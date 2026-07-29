@@ -1,4 +1,4 @@
-# Contributing to Dograh AI
+# Contributing to DograhV2
 
 Welcome to Dograh AI! ❤️ Thank you for your interest in contributing to the future of open-source voice AI. ❤️
 
@@ -14,7 +14,7 @@ Dograh AI is a full-stack platform for building voice agents with a drag-and-dro
 
 ## 🙌 How You Can Contribute
 
-- 🐛 **Report bugs** via [GitHub Issues](https://github.com/dograh-hq/dograh/issues)
+- 🐛 **Report bugs** via [GitHub Issues](https://github.com/dsactivi-2/dograhV2/issues)
 - 💡 **Suggest features** via [Ideas](https://github.com/orgs/dograh-hq/discussions/categories/ideas)
 - 🔧 **Submit pull requests**
 - 📖 **Improve documentation** The documentation is hosted via mintlify and the code is in `docs/` folder
@@ -28,7 +28,7 @@ Dograh AI is a full-stack platform for building voice agents with a drag-and-dro
 > - Tweet about it;
 > - Refer to this project in your project's readme;
 > - Submit and vote on [Ideas](https://github.com/orgs/dograh-hq/discussions/categories/ideas);
-> - Create and comment on [Issues](https://github.com/dograh-hq/dograh/issues);
+> - Create and comment on [Issues](https://github.com/dsactivi-2/dograhV2/issues);
 > - Mention the project at local meetups and tell your friends/colleagues.
 
 ## 🚀 Development Setup
