@@ -33,10 +33,12 @@ import {
   type TrainingModule,
   type TrainingProgress,
   completeShadowModule,
+  completeVoiceDrill,
   createTrainingModule,
   fetchTrainingProgress,
   listTrainingModules,
   runTextDrill,
+  startVoiceDrill,
 } from "@/lib/api/training";
 import { useAuth } from "@/lib/auth";
 
@@ -93,7 +95,9 @@ export default function TrainingPage() {
   // create form
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newMode, setNewMode] = useState<"shadow" | "text">("shadow");
+  const [newMode, setNewMode] = useState<"shadow" | "text" | "voice">("shadow");
+  const [voiceRunId, setVoiceRunId] = useState<number | null>(null);
+  const [voiceSignaling, setVoiceSignaling] = useState<string | null>(null);
   const [newWorkflow, setNewWorkflow] = useState("");
   const [newSuccess, setNewSuccess] = useState("XFER");
   const [creating, setCreating] = useState(false);
@@ -147,6 +151,8 @@ export default function TrainingPage() {
     setAnswers({});
     setAttempt(null);
     setActionMsg(null);
+    setVoiceRunId(null);
+    setVoiceSignaling(null);
   };
 
   const submitShadow = async () => {
@@ -204,6 +210,46 @@ export default function TrainingPage() {
     }
   };
 
+  const submitVoiceStart = async () => {
+    if (!selected) return;
+    setRunning(true);
+    setActionMsg(null);
+    try {
+      const res = await startVoiceDrill(selected.id, {
+        max_duration_seconds: 90,
+      });
+      setVoiceRunId(res.workflow_run_id);
+      setVoiceSignaling(res.signaling_path);
+      setActionMsg(
+        `Voice-Session run #${res.workflow_run_id} · max ${res.max_duration_hint_seconds}s. WebRTC verbinden, sprechen, dann abschließen.`,
+      );
+    } catch (e) {
+      setActionMsg(e instanceof Error ? e.message : "Voice start failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const submitVoiceComplete = async () => {
+    if (!selected || !voiceRunId) return;
+    setRunning(true);
+    setActionMsg(null);
+    try {
+      const res = await completeVoiceDrill(selected.id, voiceRunId, true);
+      setAttempt(res);
+      setActionMsg(
+        res.passed
+          ? `Voice bestanden: ${res.score}%`
+          : `Voice nicht bestanden: ${res.score}%`,
+      );
+      await load();
+    } catch (e) {
+      setActionMsg(e instanceof Error ? e.message : "Voice complete failed");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   const createModule = async () => {
     if (!newTitle.trim()) return;
     setCreating(true);
@@ -222,7 +268,7 @@ export default function TrainingPage() {
             .map((s) => s.trim())
             .filter(Boolean),
         });
-      } else {
+      } else if (newMode === "text") {
         if (!newWorkflow) throw new Error("Workflow für Text-Drill wählen");
         await createTrainingModule({
           title: newTitle.trim(),
@@ -253,6 +299,33 @@ export default function TrainingPage() {
           },
           tags: ["text-drill"],
         });
+      } else {
+        if (!newWorkflow) throw new Error("Workflow für Voice-Drill wählen");
+        await createTrainingModule({
+          title: newTitle.trim(),
+          mode: "voice",
+          workflow_id: Number(newWorkflow),
+          difficulty: "advanced",
+          pass_score: 70,
+          success_codes: newSuccess
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          content: {
+            briefing:
+              "Kurzes Voice-Gespräch (≤90s). Begrüße, nenne Firma, prüfe Identität.",
+            initial_context: {},
+            assertions: [
+              {
+                type: "response_contains",
+                value: "hallo",
+                case_insensitive: true,
+              },
+            ],
+            max_duration_hint_seconds: 90,
+          },
+          tags: ["voice-drill"],
+        });
       }
       setNewTitle("");
       setShowCreate(false);
@@ -280,8 +353,7 @@ export default function TrainingPage() {
             Training
           </h1>
           <p className="text-sm text-muted-foreground">
-            Schulung für Agenten: Shadow-Quiz am Script + Text-Drills gegen
-            den Workflow (Success-Set / Assertions).
+            Schulung: Shadow → Text-Drill → Voice (kurz). Success-Set / Assertions / QA-Tags als Lernsignal.
           </p>
         </div>
         <div className="flex gap-2">
@@ -337,7 +409,7 @@ export default function TrainingPage() {
             <p className="mt-1 text-2xl font-semibold">
               {progress.attempts_total}
             </p>
-            <p className="text-xs text-muted-foreground">Shadow + Text</p>
+            <p className="text-xs text-muted-foreground">Shadow + Text + Voice</p>
           </Card>
         </div>
       )}
@@ -356,7 +428,7 @@ export default function TrainingPage() {
             <Label>Modus</Label>
             <Select
               value={newMode}
-              onValueChange={(v) => setNewMode(v as "shadow" | "text")}
+              onValueChange={(v) => setNewMode(v as "shadow" | "text" | "voice")}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -364,10 +436,11 @@ export default function TrainingPage() {
               <SelectContent>
                 <SelectItem value="shadow">Shadow (Script + Quiz)</SelectItem>
                 <SelectItem value="text">Text-Drill (Eval-Harness)</SelectItem>
+                <SelectItem value="voice">Voice-Drill (WebRTC)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          {newMode === "text" && (
+          {(newMode === "text" || newMode === "voice") && (
             <div className="space-y-1.5">
               <Label>Workflow</Label>
               <Select value={newWorkflow} onValueChange={setNewWorkflow}>
@@ -410,6 +483,7 @@ export default function TrainingPage() {
             <SelectItem value="all">Alle Modi</SelectItem>
             <SelectItem value="shadow">Shadow</SelectItem>
             <SelectItem value="text">Text</SelectItem>
+            <SelectItem value="voice">Voice</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -573,6 +647,45 @@ export default function TrainingPage() {
                 </>
               )}
 
+
+              {selected.mode === "voice" && (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Kurzes Voice-Gespräch (WebRTC). Score: Assertions + Disposition
+                    im Success-Set + optionale QA-Tags. Cost-Guard: max ~10
+                    Sessions/Org/Stunde.
+                  </p>
+                  {(selected.content as { briefing?: string }).briefing && (
+                    <Card className="border-dashed p-3 text-sm">
+                      {(selected.content as { briefing?: string }).briefing}
+                    </Card>
+                  )}
+                  <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-xs">
+                    {JSON.stringify(selected.content, null, 2)}
+                  </pre>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={submitVoiceStart} disabled={running}>
+                      <Play className="mr-1.5 h-4 w-4" />
+                      {running ? "…" : "Voice-Session starten"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={submitVoiceComplete}
+                      disabled={running || !voiceRunId}
+                    >
+                      Session scoren
+                    </Button>
+                  </div>
+                  {voiceRunId && (
+                    <p className="text-xs text-muted-foreground">
+                      run #{voiceRunId}
+                      {voiceSignaling ? ` · ${voiceSignaling}` : ""} — im
+                      Workflow-Player verbinden, sprechen, auflegen, dann scoren.
+                    </p>
+                  )}
+                </>
+              )}
+
               {actionMsg && (
                 <p className="text-sm text-muted-foreground">{actionMsg}</p>
               )}
@@ -607,7 +720,8 @@ export default function TrainingPage() {
                       ))}
                     </ul>
                   )}
-                  {attempt.mode === "text" && attempt.result && (
+                  {(attempt.mode === "text" || attempt.mode === "voice") &&
+                    attempt.result && (
                     <pre className="mt-2 max-h-40 overflow-auto text-[10px] text-muted-foreground">
                       {JSON.stringify(
                         {

@@ -24,13 +24,24 @@ from api.schemas.training import (
     TrainingModuleUpdate,
     TrainingProgressResponse,
     ModuleProgressItem,
+    VoiceDrillCompleteRequest,
+    VoiceDrillStartRequest,
+    VoiceDrillStartResponse,
 )
 from api.services.auth.depends import get_user
 from api.services.evals.text_harness import run_text_eval_scenario
+from api.services.evals.voice_guards import (
+    VoiceEvalGuardError,
+    check_voice_eval_allowed,
+    clamp_max_duration_seconds,
+    voice_eval_guard_payload,
+)
+from api.services.evals.voice_score import score_voice_run
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.training.score import (
     score_shadow_quiz,
     score_text_drill,
+    score_voice_drill,
     strip_quiz_answers,
 )
 from api.services.workflow.run_creation import prepare_workflow_run_inputs
@@ -121,7 +132,7 @@ async def training_health():
     return {
         "status": "ok",
         "module": "training",
-        "modes": ["shadow", "text"],
+        "modes": ["shadow", "text", "voice"],
         "schema_version": 1,
     }
 
@@ -159,9 +170,9 @@ async def create_module(
     user: UserModel = Depends(get_user),
 ) -> TrainingModuleResponse:
     org_id = _require_org(user)
-    if body.mode == "text" and not body.workflow_id:
+    if body.mode in ("text", "voice") and not body.workflow_id:
         raise HTTPException(
-            status_code=400, detail="text modules require workflow_id"
+            status_code=400, detail=f"{body.mode} modules require workflow_id"
         )
     try:
         m = await db_client.create_training_module(
@@ -564,3 +575,209 @@ async def run_text_drill(
         workflow_run_id=attempt.workflow_run_id,
         created_at=attempt.created_at,
     )
+
+
+@router.post(
+    "/modules/{module_id}/voice/start",
+    response_model=VoiceDrillStartResponse,
+)
+async def start_voice_drill(
+    module_id: int,
+    body: VoiceDrillStartRequest | None = None,
+    user: UserModel = Depends(get_user),
+) -> VoiceDrillStartResponse:
+    """Create a short SMALLWEBRTC run for a voice training drill (human-in-the-loop)."""
+    org_id = _require_org(user)
+    body = body or VoiceDrillStartRequest()
+    m = await db_client.get_training_module(module_id, org_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if m.mode != "voice":
+        raise HTTPException(status_code=400, detail="Module is not voice mode")
+    if not m.workflow_id:
+        raise HTTPException(status_code=400, detail="Module has no workflow_id")
+    if not m.is_published and int(m.created_by_user_id) != int(user.id):
+        raise HTTPException(status_code=403, detail="Module not published")
+
+    recent = await db_client.count_recent_voice_eval_sessions(org_id, hours=1)
+    try:
+        guards = check_voice_eval_allowed(recent_session_count=recent, batch_size=1)
+    except VoiceEvalGuardError as e:
+        raise HTTPException(
+            status_code=429 if e.code == "rate_limited" else 400,
+            detail={"code": e.code, "message": e.message},
+        ) from e
+
+    workflow = await db_client.get_workflow(m.workflow_id, organization_id=org_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    max_dur = clamp_max_duration_seconds(body.max_duration_seconds)
+    content = m.content or {}
+    initial = dict(content.get("initial_context") or {})
+    if body.initial_context:
+        initial.update(body.initial_context)
+
+    run_inputs = await prepare_workflow_run_inputs(
+        db_client,
+        workflow,
+        initial_context=initial,
+        use_draft=True,
+        include_template_context=True,
+    )
+    name = f"VTRAIN-{uuid4().hex[:8].upper()}"
+    workflow_run = await db_client.create_workflow_run(
+        name=name,
+        workflow_id=int(m.workflow_id),
+        mode=WorkflowRunMode.SMALLWEBRTC.value,
+        user_id=user.id,
+        initial_context=run_inputs.initial_context,
+        organization_id=org_id,
+        definition_id=run_inputs.definition_id,
+    )
+    set_current_run_id(workflow_run.id)
+
+    quota = await authorize_workflow_run_start(
+        workflow_id=int(m.workflow_id),
+        organization_id=org_id,
+        workflow_run_id=workflow_run.id,
+        actor_user=user,
+    )
+    if not quota.has_quota:
+        raise HTTPException(status_code=402, detail=quota.error_message)
+
+    guard_meta = voice_eval_guard_payload(
+        recent_session_count=recent,
+        max_duration_seconds=max_dur,
+    )
+    guard_meta["source"] = "training_voice_drill"
+    await db_client.update_workflow_run(
+        workflow_run.id,
+        annotations={
+            "tester": guard_meta,
+            "training": {
+                "module_id": m.id,
+                "module_title": m.title,
+                "mode": "voice",
+                "success_codes": list(m.success_codes or []),
+                "pass_score": float(m.pass_score or 70),
+                "assertions": content.get("assertions") or [],
+            },
+        },
+        initial_context={
+            "training_voice": {
+                "module_id": m.id,
+                "max_duration_hint_seconds": max_dur,
+            }
+        },
+    )
+
+    return VoiceDrillStartResponse(
+        module_id=m.id,
+        workflow_id=int(m.workflow_id),
+        workflow_run_id=workflow_run.id,
+        max_duration_hint_seconds=max_dur,
+        signaling_path=f"/api/v1/ws/signaling/{m.workflow_id}/{workflow_run.id}",
+        guards=guards,
+    )
+
+
+@router.post(
+    "/modules/{module_id}/voice/complete",
+    response_model=TrainingAttemptResponse,
+)
+async def complete_voice_drill(
+    module_id: int,
+    body: VoiceDrillCompleteRequest,
+    user: UserModel = Depends(get_user),
+) -> TrainingAttemptResponse:
+    """Score a completed voice training run and store the attempt."""
+    org_id = _require_org(user)
+    m = await db_client.get_training_module(module_id, org_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if m.mode != "voice":
+        raise HTTPException(status_code=400, detail="Module is not voice mode")
+    if not m.is_published and int(m.created_by_user_id) != int(user.id):
+        raise HTTPException(status_code=403, detail="Module not published")
+
+    run = await db_client.get_workflow_run(
+        body.workflow_run_id, organization_id=org_id
+    )
+    if not run:
+        raise HTTPException(status_code=404, detail="Workflow run not found")
+
+    # Ensure run is tagged for this module (or at least same workflow)
+    ann = run.annotations if isinstance(run.annotations, dict) else {}
+    training_meta = ann.get("training") if isinstance(ann.get("training"), dict) else {}
+    if training_meta.get("module_id") not in (None, m.id) and int(
+        training_meta.get("module_id") or 0
+    ) != int(m.id):
+        raise HTTPException(
+            status_code=400, detail="Run is not linked to this training module"
+        )
+    if m.workflow_id and run.workflow_id != m.workflow_id:
+        raise HTTPException(
+            status_code=400, detail="Run workflow does not match module workflow"
+        )
+
+    content = m.content or {}
+    assertions = content.get("assertions") or []
+    scored_raw = score_voice_run(
+        run_id=run.id,
+        workflow_id=run.workflow_id,
+        mode=run.mode,
+        is_completed=bool(run.is_completed),
+        logs=run.logs,
+        gathered_context=run.gathered_context,
+        annotations=run.annotations,
+        assertions=assertions,
+        success_codes=list(m.success_codes or []),
+        pass_score=float(m.pass_score or 70),
+        include_qa=body.include_qa,
+    )
+    scored = score_voice_drill(
+        voice_score_payload=scored_raw,
+        pass_score=float(m.pass_score or 70),
+    )
+    scored["module_id"] = m.id
+
+    attempt = await db_client.create_training_attempt(
+        organization_id=org_id,
+        module_id=m.id,
+        user_id=int(user.id),
+        mode="voice",
+        score=float(scored["score"]),
+        passed=bool(scored["passed"]),
+        result=scored,
+        workflow_run_id=run.id,
+    )
+    try:
+        await db_client.update_workflow_run(
+            run.id,
+            annotations={
+                "voice_eval": {
+                    "score": scored["score"],
+                    "passed": scored["passed"],
+                    "source": "training.voice.complete",
+                    "module_id": m.id,
+                    "scored_by_user_id": int(user.id),
+                }
+            },
+        )
+    except Exception as e:
+        logger.warning(f"training voice annotation write failed: {e}")
+
+    return TrainingAttemptResponse(
+        id=attempt.id,
+        module_id=m.id,
+        module_title=m.title,
+        user_id=int(user.id),
+        mode="voice",
+        score=float(attempt.score),
+        passed=bool(attempt.passed),
+        result=attempt.result or {},
+        workflow_run_id=attempt.workflow_run_id,
+        created_at=attempt.created_at,
+    )
+

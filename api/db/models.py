@@ -1685,7 +1685,7 @@ class ScriptLibraryEntryModel(Base):
 class TrainingModuleModel(Base):
     """Org-scoped training module for agent coaching (P5).
 
-    mode: shadow (script + quiz) | text (scripted text-chat drill via eval harness)
+    mode: shadow | text | voice (P6 short WebRTC drill + score)
     content JSON holds mode-specific payload (script_excerpt, quiz, scenario, …).
     """
 

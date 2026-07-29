@@ -4,7 +4,7 @@
 
 import { client } from "@/client/client.gen";
 
-export type TrainingMode = "shadow" | "text";
+export type TrainingMode = "shadow" | "text" | "voice";
 export type Difficulty = "beginner" | "intermediate" | "advanced";
 
 export type TrainingModule = {
@@ -163,3 +163,40 @@ export async function listMyAttempts(moduleId?: number): Promise<{
   if (res.error) throw new Error(errMsg(res.error, "Attempts failed"));
   return res.data as { total: number; items: TrainingAttempt[] };
 }
+
+export type VoiceDrillStartResponse = {
+  module_id: number;
+  workflow_id: number;
+  workflow_run_id: number;
+  mode: string;
+  max_duration_hint_seconds: number;
+  signaling_path: string;
+  guards: Record<string, unknown>;
+  message: string;
+};
+
+export async function startVoiceDrill(
+  moduleId: number,
+  opts?: { max_duration_seconds?: number },
+): Promise<VoiceDrillStartResponse> {
+  const res = await client.post({
+    url: `/api/v1/training/modules/${moduleId}/voice/start`,
+    body: opts || {},
+  });
+  if (res.error) throw new Error(errMsg(res.error, "Voice start failed"));
+  return res.data as VoiceDrillStartResponse;
+}
+
+export async function completeVoiceDrill(
+  moduleId: number,
+  workflowRunId: number,
+  includeQa = true,
+): Promise<TrainingAttempt> {
+  const res = await client.post({
+    url: `/api/v1/training/modules/${moduleId}/voice/complete`,
+    body: { workflow_run_id: workflowRunId, include_qa: includeQa },
+  });
+  if (res.error) throw new Error(errMsg(res.error, "Voice complete failed"));
+  return res.data as TrainingAttempt;
+}
+

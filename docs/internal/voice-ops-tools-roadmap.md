@@ -11,7 +11,7 @@
 | **P3** Campaign Tower + Cost | **MVP** | `/api/v1/campaign-ops/*`, `/api/v1/cost-attribution/*`, UI `/campaigns/ops` + `/costs` |
 | **P4** QA Center + Compliance | **MVP** | `/api/v1/qa-center/*`, UI `/qa-center`, override + audit |
 | **P5** Schulung MVP | **MVP** | `/api/v1/training/*`, UI `/training`, shadow + text drills |
-| **P6** Voice-Eval | later | full voice training |
+| **P6** Voice-Eval + Training-Voice | **MVP** | score-run + guarded SMALLWEBRTC + training voice; no dual-role |
 
 ## P0 Endpoints
 - `GET /api/v1/outcomes/health`
@@ -71,6 +71,18 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - Docs: `docs/internal/training.md`
 - Reuse: text-eval harness, disposition success codes, org auth
 
+## P6 Voice Eval + Training Voice
+- Phase 0: live pipeline + RTF transcripts + QA/disposition reuse; looptalk dual-role **removed**; no headless audio inject
+- `POST /api/v1/evals/voice/score-run` — score completed run (transcript + assertions + success_codes + QA)
+- `POST /api/v1/evals/voice/sessions` — create SHORT SMALLWEBRTC (`VEVAL-*`), rate-limited
+- `POST /api/v1/evals/voice/sessions/{id}/finalize`
+- Training: `mode=voice`, `POST .../voice/start|complete` (`VTRAIN-*`)
+- Cost guards: 10 sessions/org/hour, batch=1, duration hint ≤180s, quota 402
+- UI: `/evals` Voice-Tab, `/training` voice modules
+- Docs: `docs/internal/voice-eval.md`, `training-learning-design.md`
+- Tests: `api/tests/test_voice_eval.py`
+- **Not built:** dual-role, headless user-audio inject, unbounded batch voice
+
 ## UI typed clients (until OpenAPI regen)
 - `ui/src/lib/api/outcomes.ts`
 - `ui/src/lib/api/disposition.ts`
@@ -80,8 +92,9 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - `ui/src/lib/api/costAttribution.ts`
 - `ui/src/lib/api/qaCenter.ts`
 - `ui/src/lib/api/training.ts`
+- `ui/src/lib/api/evals.ts` (text + voice)
 
 Regenerate hey-api client when API is running: `cd ui && npm run generate-client`.
 
 ## Reuse
-Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · annotations override audit · training attempts · no Meilisearch/Celery
+Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · annotations override audit · training attempts · voice RTF transcripts · no Meilisearch/Celery · no looptalk

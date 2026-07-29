@@ -14,8 +14,9 @@ Schulungs-App für **Menschen** (Agenten/Reviewer):
 
 1. **Shadow** — Script lesen + Quiz (ohne Live-Agent)
 2. **Text-Drill** — scripted TEXTCHAT über den P2 Eval-Harness, Score vs. Assertions + Success-Set
+3. **Voice** (P6) — kurze SMALLWEBRTC-Session + Score (Transcript/Disposition/QA)
 
-Fortschritt pro User, org-scoped.
+Fortschritt pro User, org-scoped. Lernpfad: siehe `training-learning-design.md`.
 
 ## Tabellen
 
@@ -37,6 +38,8 @@ Migration `e4f5a6b7c8d9_add_training_modules.py`:
 | GET | `/attempts` | My attempts |
 | POST | `/modules/{id}/shadow/complete` | Quiz answers → score |
 | POST | `/modules/{id}/text/run` | Text drill via eval harness |
+| POST | `/modules/{id}/voice/start` | SHORT SMALLWEBRTC run (`VTRAIN-*`) |
+| POST | `/modules/{id}/voice/complete` | Score run → training_attempt |
 
 ## Content shapes
 
@@ -80,12 +83,28 @@ Learner GET strips `correct_option_ids`.
 
 Assertion types = P2 eval harness.
 
+### Voice
+
+```json
+{
+  "briefing": "…",
+  "initial_context": {},
+  "assertions": [
+    { "type": "response_contains", "value": "hallo", "case_insensitive": true }
+  ],
+  "max_duration_hint_seconds": 90
+}
+```
+
+Human-in-the-loop WebRTC. Cost guards: max 10 sessions/org/hour. No dual-role.
+
 ## Scoring
 
 | Mode | Formel |
 |------|--------|
 | Shadow | % richtige Quiz-Fragen; passed if ≥ `pass_score` (default 70) |
 | Text | 80% assertion pass-rate + 20% disposition ∈ `success_codes` |
+| Voice | Voice-scorer: assertions + disposition + optional QA (siehe `voice-eval.md`) |
 
 ## Reuse
 

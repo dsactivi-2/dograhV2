@@ -45,7 +45,7 @@ class TextDrillContent(BaseModel):
 class TrainingModuleCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str = ""
-    mode: Literal["shadow", "text"] = "shadow"
+    mode: Literal["shadow", "text", "voice"] = "shadow"
     workflow_id: Optional[int] = None
     script_entry_id: Optional[int] = None
     success_codes: list[str] = Field(default_factory=list)
@@ -59,7 +59,7 @@ class TrainingModuleCreate(BaseModel):
 class TrainingModuleUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
-    mode: Optional[Literal["shadow", "text"]] = None
+    mode: Optional[Literal["shadow", "text", "voice"]] = None
     workflow_id: Optional[int] = None
     script_entry_id: Optional[int] = None
     success_codes: Optional[list[str]] = None
@@ -119,6 +119,33 @@ class QuizItemResult(BaseModel):
     selected: list[str] = Field(default_factory=list)
     expected: list[str] = Field(default_factory=list)
     explanation: str = ""
+
+
+
+
+class VoiceDrillStartRequest(BaseModel):
+    """Optional overrides when starting a voice drill session."""
+
+    max_duration_seconds: int = Field(default=90, ge=15, le=180)
+    initial_context: Optional[dict[str, Any]] = None
+
+
+class VoiceDrillStartResponse(BaseModel):
+    module_id: int
+    workflow_id: int
+    workflow_run_id: int
+    mode: str = "voice"
+    max_duration_hint_seconds: int
+    signaling_path: str
+    guards: dict[str, Any] = Field(default_factory=dict)
+    message: str = (
+        "Connect via WebRTC, speak, hang up, then POST .../voice/complete."
+    )
+
+
+class VoiceDrillCompleteRequest(BaseModel):
+    workflow_run_id: int
+    include_qa: bool = True
 
 
 class TrainingAttemptResponse(BaseModel):

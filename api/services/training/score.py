@@ -1,4 +1,4 @@
-"""Pure scoring helpers for shadow quiz + text drills (P5)."""
+"""Pure scoring helpers for shadow quiz + text drills + voice (P5/P6)."""
 
 from __future__ import annotations
 
@@ -118,7 +118,7 @@ def score_text_drill(
     else:
         # no success set configured — use overall eval pass as soft signal
         disp_ok = bool(eval_passed)
-        disposition_score = 100.0 if disp_ok else 0.0
+        disposition_score = 100.0 if eval_passed else 0.0
 
     if total_assertions == 0 and not codes:
         score = 100.0 if eval_passed else 0.0
@@ -139,5 +139,25 @@ def score_text_drill(
         "disposition_success": disp_ok,
         "success_codes": sorted(codes),
         "eval_passed": bool(eval_passed),
+        "pass_score": float(pass_score),
+    }
+
+
+def score_voice_drill(
+    *,
+    voice_score_payload: dict[str, Any],
+    pass_score: float = 70.0,
+) -> dict[str, Any]:
+    """Adapt voice_score.score_voice_run output into a training attempt result.
+
+    Reuses the numeric score from the voice scorer; stamps mode=voice.
+    """
+    payload = dict(voice_score_payload or {})
+    score = float(payload.get("score") or 0.0)
+    return {
+        **payload,
+        "mode": "voice",
+        "score": round(score, 2),
+        "passed": score >= float(pass_score),
         "pass_score": float(pass_score),
     }

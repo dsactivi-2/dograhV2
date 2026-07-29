@@ -67,3 +67,104 @@ export async function runTextEval(
   if (res.error) throw new Error(errMsg(res.error, "Eval run failed"));
   return res.data as TextEvalRunResponse;
 }
+
+// --- Voice eval (P6) ---
+
+export type VoiceScoreRunRequest = {
+  workflow_run_id: number;
+  assertions?: Array<Record<string, unknown>>;
+  success_codes?: string[];
+  pass_score?: number;
+  include_qa?: boolean;
+};
+
+export type VoiceScoreResult = {
+  mode: string;
+  run_id: number;
+  workflow_id: number | null;
+  run_mode: string | null;
+  is_completed: boolean;
+  score: number;
+  passed: boolean;
+  pass_score: number;
+  transcript: string;
+  transcript_chars: number;
+  has_transcript: boolean;
+  disposition: string | null;
+  disposition_success: boolean;
+  success_codes: string[];
+  assertions_total: number;
+  assertions_passed: number;
+  assertion_pass_rate: number | null;
+  assertion_results: AssertionResult[];
+  qa_score: number | null;
+  qa_tags: string[];
+  qa?: Record<string, unknown> | null;
+  error?: string | null;
+  scenario_name?: string | null;
+};
+
+export type VoiceSessionCreateRequest = {
+  workflow_id: number;
+  scenario_name?: string;
+  initial_context?: Record<string, unknown>;
+  max_duration_seconds?: number;
+  assertions?: Array<Record<string, unknown>>;
+  success_codes?: string[];
+  pass_score?: number;
+  tags?: string[];
+};
+
+export type VoiceSessionCreateResponse = {
+  workflow_id: number;
+  workflow_run_id: number;
+  mode: string;
+  scenario_name: string;
+  max_duration_hint_seconds: number;
+  signaling_path: string;
+  guards: Record<string, unknown>;
+  assertions: Array<Record<string, unknown>>;
+  success_codes: string[];
+  pass_score: number;
+  message: string;
+};
+
+export async function scoreVoiceRun(
+  body: VoiceScoreRunRequest,
+): Promise<VoiceScoreResult> {
+  const res = await client.post({
+    url: "/api/v1/evals/voice/score-run",
+    body,
+  });
+  if (res.error) throw new Error(errMsg(res.error, "Voice score failed"));
+  return res.data as VoiceScoreResult;
+}
+
+export async function createVoiceEvalSession(
+  body: VoiceSessionCreateRequest,
+): Promise<VoiceSessionCreateResponse> {
+  const res = await client.post({
+    url: "/api/v1/evals/voice/sessions",
+    body,
+  });
+  if (res.error) throw new Error(errMsg(res.error, "Voice session create failed"));
+  return res.data as VoiceSessionCreateResponse;
+}
+
+export async function finalizeVoiceEvalSession(
+  runId: number,
+  body?: {
+    assertions?: Array<Record<string, unknown>>;
+    success_codes?: string[];
+    pass_score?: number;
+    include_qa?: boolean;
+  },
+): Promise<VoiceScoreResult> {
+  const res = await client.post({
+    url: `/api/v1/evals/voice/sessions/${runId}/finalize`,
+    body: body || {},
+  });
+  if (res.error) throw new Error(errMsg(res.error, "Voice finalize failed"));
+  return res.data as VoiceScoreResult;
+}
+
