@@ -9,7 +9,7 @@
 | **P1** Script-Bibliothek | **MVP** | `/api/v1/scripts/*`, FTS prompt search, definition diff, UI `/scripts` |
 | **P2** Text-Chat Eval Harness | **MVP core** | `/api/v1/evals/text/run`, UI `/evals` |
 | **P3** Campaign Tower + Cost | **MVP** | `/api/v1/campaign-ops/*`, `/api/v1/cost-attribution/*`, UI `/campaigns/ops` + `/costs` |
-| **P4** QA Center + Compliance | planned | extend annotations + taxonomy |
+| **P4** QA Center + Compliance | **MVP** | `/api/v1/qa-center/*`, UI `/qa-center`, override + audit |
 | **P5** Schulung MVP | planned | `/training` shadow + text |
 | **P6** Voice-Eval | later | full voice training |
 
@@ -50,6 +50,17 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - Docs: `docs/internal/campaign-control-tower.md`, `docs/internal/cost-attribution.md`
 - Reuse: `queued_runs` + `workflow_runs` + `cost_info`/`usage_info` + existing CB Redis; no billing engine
 
+## P4 QA Center + Compliance
+- `GET /api/v1/qa-center/health|summary|queue`
+- `GET /api/v1/qa-center/runs/{id}`
+- `PUT /api/v1/qa-center/runs/{id}/override` — audit trail on annotations
+- `POST /api/v1/qa-center/runs/{id}/rerun` — ARQ `run_integrations_post_workflow_run`
+- Normalizer: dict-form tags + sentiment (`overall_sentiment`)
+- Compliance flags: identity/disclosure/DNC/… from raw fields, tags, override
+- UI: `/qa-center`
+- Docs: `docs/internal/qa-center.md`
+- Reuse: schema-v1 QA + annotations merge + ARQ; no new tables
+
 ## UI typed clients (until OpenAPI regen)
 - `ui/src/lib/api/outcomes.ts`
 - `ui/src/lib/api/disposition.ts`
@@ -57,8 +68,9 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - `ui/src/lib/api/evals.ts`
 - `ui/src/lib/api/campaignOps.ts`
 - `ui/src/lib/api/costAttribution.ts`
+- `ui/src/lib/api/qaCenter.ts`
 
 Regenerate hey-api client when API is running: `cd ui && npm run generate-client`.
 
 ## Reuse
-Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · no Meilisearch/Celery
+Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · annotations override audit · no Meilisearch/Celery

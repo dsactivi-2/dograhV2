@@ -17,14 +17,45 @@ def _as_float(value: Any) -> Optional[float]:
         return None
 
 
-def _as_str_list(value: Any) -> list[str]:
+def _extract_tags(value: Any) -> list[str]:
+    """Accept string tags or default-QA dict form {tag, reason}."""
     if value is None:
         return []
     if isinstance(value, str):
-        return [value] if value else []
+        return [value.strip()] if value.strip() else []
     if isinstance(value, list):
-        return [str(v) for v in value if v is not None and str(v).strip()]
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                out.append(item.strip())
+            elif isinstance(item, dict):
+                tag = item.get("tag") or item.get("name")
+                if tag is not None and str(tag).strip():
+                    out.append(str(tag).strip())
+        return out
     return []
+
+
+def _as_str_list(value: Any) -> list[str]:
+    return _extract_tags(value)
+
+
+def _extract_sentiment(result: dict[str, Any]) -> Optional[str]:
+    for key in ("overall_sentiment", "sentiment", "call_sentiment"):
+        raw = result.get(key)
+        if raw is None:
+            continue
+        s = str(raw).strip().lower()
+        if s:
+            return s
+    return None
+
+
+def _majority_sentiment(values: list[str]) -> Optional[str]:
+    if not values:
+        return None
+    counts = Counter(values)
+    return counts.most_common(1)[0][0]
 
 
 def normalize_run_qa(
@@ -35,18 +66,20 @@ def normalize_run_qa(
     """Convert raw annotations JSON into QaRunOutcome (schema_version=1).
 
     Tolerates missing/partial QA. Never raises on bad shapes.
+    Does not apply manual overrides — see qa_center.enrich.
     """
     ann = annotations if isinstance(annotations, dict) else {}
     nodes: list[QaNodeOutcome] = []
     errors: list[str] = []
     source_keys: list[str] = []
     aggregate_tags: list[str] = []
+    sentiments: list[str] = []
 
     # Top-level aggregated tags written by run_integrations
-    aggregate_tags.extend(_as_str_list(ann.get("tags")))
+    aggregate_tags.extend(_extract_tags(ann.get("tags")))
 
     for key, payload in ann.items():
-        if key in {"tags"}:
+        if key in {"tags", "qa_manual_override", "qa_override_audit"}:
             continue
         if not isinstance(payload, dict):
             continue
@@ -61,11 +94,14 @@ def normalize_run_qa(
             if not isinstance(result, dict):
                 errors.append(f"{key}/{node_id}: non-dict result")
                 continue
-            tags = _as_str_list(result.get("tags"))
+            tags = _extract_tags(result.get("tags"))
             aggregate_tags.extend(tags)
             err = result.get("error")
             if err:
                 errors.append(f"{key}/{node_id}: {err}")
+            sentiment = _extract_sentiment(result)
+            if sentiment:
+                sentiments.append(sentiment)
             nodes.append(
                 QaNodeOutcome(
                     node_id=str(node_id),
@@ -73,12 +109,21 @@ def normalize_run_qa(
                     score=_as_float(result.get("score")),
                     tags=tags,
                     summary=str(result.get("summary") or ""),
+                    sentiment=sentiment,
                     error=str(err) if err else None,
                     raw={
                         k: v
                         for k, v in result.items()
                         if k
-                        not in {"node_name", "score", "tags", "summary", "error"}
+                        not in {
+                            "node_name",
+                            "score",
+                            "tags",
+                            "summary",
+                            "error",
+                            "overall_sentiment",
+                            "sentiment",
+                        }
                     },
                 )
             )
@@ -99,6 +144,7 @@ def normalize_run_qa(
         workflow_id=workflow_id,
         has_qa=bool(nodes) or bool(source_keys),
         overall_score=overall,
+        sentiment=_majority_sentiment(sentiments),
         tags=tags_unique,
         nodes=nodes,
         errors=errors,

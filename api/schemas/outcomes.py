@@ -16,6 +16,7 @@ class QaNodeOutcome(BaseModel):
     score: Optional[float] = None
     tags: list[str] = Field(default_factory=list)
     summary: str = ""
+    sentiment: Optional[str] = None  # positive|neutral|negative|…
     error: Optional[str] = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
@@ -28,6 +29,7 @@ class QaRunOutcome(BaseModel):
     workflow_id: Optional[int] = None
     has_qa: bool = False
     overall_score: Optional[float] = None
+    sentiment: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     nodes: list[QaNodeOutcome] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)

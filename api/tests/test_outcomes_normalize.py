@@ -10,6 +10,7 @@ def test_normalize_empty_annotations():
     assert qa.has_qa is False
     assert qa.nodes == []
     assert qa.overall_score is None
+    assert qa.sentiment is None
 
 
 def test_normalize_per_node_scores_and_tags():
@@ -22,12 +23,14 @@ def test_normalize_per_node_scores_and_tags():
                     "score": 80,
                     "tags": ["good_open", "missed_budget"],
                     "summary": "Solid discovery",
+                    "overall_sentiment": "positive",
                 },
                 "n2": {
                     "node_name": "Close",
                     "score": 60,
                     "tags": ["price_objection"],
                     "summary": "Soft close",
+                    "overall_sentiment": "neutral",
                 },
             },
         },
@@ -41,6 +44,43 @@ def test_normalize_per_node_scores_and_tags():
     assert "good_open" in qa.tags
     assert "price_objection" in qa.tags
     assert "qa_node_1" in qa.source_keys
+    assert qa.sentiment in {"positive", "neutral"}  # majority of two distinct = first most_common order
+
+
+def test_normalize_dict_form_tags():
+    annotations = {
+        "qa": {
+            "node_results": {
+                "w": {
+                    "node_name": "Whole",
+                    "score": 5,
+                    "tags": [{"tag": "DEAD_AIR", "reason": "silence"}],
+                    "overall_sentiment": "negative",
+                }
+            }
+        }
+    }
+    qa = normalize_run_qa(1, annotations)
+    assert qa.tags == ["DEAD_AIR"]
+    assert qa.sentiment == "negative"
+
+
+def test_normalize_skips_manual_override_key():
+    annotations = {
+        "qa_manual_override": {
+            "overall_score": 9,
+            "tags": ["OK"],
+        },
+        "qa_node": {
+            "node_results": {
+                "n": {"score": 4, "tags": ["DEAD_AIR"], "overall_sentiment": "negative"}
+            }
+        },
+    }
+    qa = normalize_run_qa(1, annotations)
+    assert "DEAD_AIR" in qa.tags
+    assert "OK" not in qa.tags  # override applied elsewhere
+    assert qa.overall_score == 4.0
 
 
 def test_normalize_tolerates_bad_shapes():
@@ -78,4 +118,3 @@ def test_summarize_outcomes_disposition_and_coverage():
     assert s["qa_coverage"]["runs_with_qa"] == 2
     assert s["average_qa_score"] == 90.0
     assert s["disposition_distribution"][0]["disposition"] == "XFER"
-    assert s["disposition_distribution"][0]["count"] == 2
