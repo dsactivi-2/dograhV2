@@ -1,6 +1,8 @@
 from api.db.agent_trigger_client import AgentTriggerClient
 from api.db.api_key_client import APIKeyClient
 from api.db.campaign_client import CampaignClient
+from api.db.campaign_ops_client import CampaignOpsClient
+from api.db.cost_attribution_client import CostAttributionClient
 from api.db.disposition_client import DispositionClient
 from api.db.embed_token_client import EmbedTokenClient
 from api.db.folder_client import FolderClient
@@ -53,6 +55,8 @@ class DBClient(
     OutcomesClient,
     DispositionClient,
     ScriptLibraryClient,
+    CampaignOpsClient,
+    CostAttributionClient,
 ):
     """
     Unified database client that combines all specialized database operations.

@@ -8,7 +8,7 @@
 | Disposition Taxonomy | **MVP** | `/api/v1/disposition-taxonomy/*`, Success-Set R/W on workflow |
 | **P1** Script-Bibliothek | **MVP** | `/api/v1/scripts/*`, FTS prompt search, definition diff, UI `/scripts` |
 | **P2** Text-Chat Eval Harness | **MVP core** | `/api/v1/evals/text/run`, UI `/evals` |
-| **P3** Campaign Tower + Cost | planned | reuse Campaign + cost_info |
+| **P3** Campaign Tower + Cost | **MVP** | `/api/v1/campaign-ops/*`, `/api/v1/cost-attribution/*`, UI `/campaigns/ops` + `/costs` |
 | **P4** QA Center + Compliance | planned | extend annotations + taxonomy |
 | **P5** Schulung MVP | planned | `/training` shadow + text |
 | **P6** Voice-Eval | later | full voice training |
@@ -40,13 +40,25 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - Assertion types: response_contains, response_not_contains, disposition_equals, gathered_key_exists, gathered_key_equals
 - UI: `/evals`
 
+## P3 Campaign Control Tower + Cost Attribution
+- `GET /api/v1/campaign-ops/health`
+- `GET /api/v1/campaign-ops/summary` — funnel + per-campaign retry/CB/disposition
+- `GET /api/v1/campaign-ops/campaigns/{id}`
+- `GET /api/v1/cost-attribution/health`
+- `GET /api/v1/cost-attribution/summary?group_by=workflow|campaign|definition`
+- UI: `/campaigns/ops`, `/costs`
+- Docs: `docs/internal/campaign-control-tower.md`, `docs/internal/cost-attribution.md`
+- Reuse: `queued_runs` + `workflow_runs` + `cost_info`/`usage_info` + existing CB Redis; no billing engine
+
 ## UI typed clients (until OpenAPI regen)
 - `ui/src/lib/api/outcomes.ts`
 - `ui/src/lib/api/disposition.ts`
 - `ui/src/lib/api/scripts.ts`
 - `ui/src/lib/api/evals.ts`
+- `ui/src/lib/api/campaignOps.ts`
+- `ui/src/lib/api/costAttribution.ts`
 
 Regenerate hey-api client when API is running: `cd ui && npm run generate-client`.
 
 ## Reuse
-Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · no Meilisearch/Celery
+Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · no Meilisearch/Celery

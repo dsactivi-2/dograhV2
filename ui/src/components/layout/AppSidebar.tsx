@@ -19,9 +19,11 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  Radar,
   Settings,
   TrendingUp,
   UserRound,
+  Wallet,
   Workflow,
   Wrench,
 } from "lucide-react";
@@ -153,6 +155,16 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         icon: BarChart3,
       },
       {
+        title: "Campaign Ops",
+        url: "/campaigns/ops",
+        icon: Radar,
+      },
+      {
+        title: "Costs",
+        url: "/costs",
+        icon: Wallet,
+      },
+      {
         title: "Scripts",
         url: "/scripts",
         icon: FileCode2,
@@ -196,7 +208,20 @@ export function AppSidebar() {
     { enabled: config?.deploymentMode === "oss" },
   );
 
-  const isActive = (path: string) => pathname.startsWith(path);
+  const isActive = (path: string) => {
+    // Keep /campaigns and /campaigns/ops from both highlighting.
+    if (path === "/campaigns") {
+      return (
+        pathname === "/campaigns" ||
+        (pathname.startsWith("/campaigns/") &&
+          !pathname.startsWith("/campaigns/ops"))
+      );
+    }
+    if (path === "/campaigns/ops") {
+      return pathname.startsWith("/campaigns/ops");
+    }
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   const handleMobileNavClick = () => {
     if (isMobile) {

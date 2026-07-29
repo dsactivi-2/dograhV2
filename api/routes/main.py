@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.campaign import router as campaign_router
+from api.routes.campaign_ops import router as campaign_ops_router
+from api.routes.cost_attribution import router as cost_attribution_router
 from api.routes.credentials import router as credentials_router
 from api.routes.disposition_taxonomy import router as disposition_taxonomy_router
 from api.routes.evals import router as evals_router
@@ -48,6 +50,8 @@ router.include_router(workflow_router)
 router.include_router(workflow_text_chat_router)
 router.include_router(user_router)
 router.include_router(campaign_router)
+router.include_router(campaign_ops_router)
+router.include_router(cost_attribution_router)
 router.include_router(credentials_router)
 router.include_router(tool_router)
 router.include_router(organization_router)
