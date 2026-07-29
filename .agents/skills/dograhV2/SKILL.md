@@ -1,82 +1,71 @@
-```markdown
-# dograhV2 Development Patterns
+---
+name: dograhV2
+description: "Build and extend DograhV2 voice AI (platform code, MCP, workflows, docs, skills). Use when working in dograhV2, adding MCP tools, integrations, telephony, voice workflows, guides, or running the Knowledge Loop. Triggers — dograhV2, Dograh MCP, knowledge loop, voice workflow, extend skill, document what you build."
+---
 
-> Auto-generated skill from repository analysis
+# dograhV2 — Build & Knowledge Loop
 
-## Overview
-This skill introduces the core development patterns and conventions used in the `dograhV2` TypeScript codebase. It covers file naming, import/export styles, commit message conventions, and testing patterns. While no specific automation workflows are detected, this guide provides best practices and suggested commands to streamline common development tasks.
+Help the user build DograhV2 features and voice agents. **Every reusable build runs the Knowledge Loop.** Ask when unclear.
 
-## Coding Conventions
+## Load first
 
-### File Naming
-- Use **camelCase** for file names.
-  - Example: `userProfile.ts`, `orderManager.ts`
+1. Root `AGENTS.md` + nearest child `AGENTS.md`
+2. **Detailed Knowledge Loop:** `.agents/prompts/references/knowledge-loop.md`
+3. System prompt: `.agents/prompts/dograhv2-agent-system.md`
+4. MCP sessions: `api/mcp_server/instructions.py`
 
-### Import Style
-- Use **alias imports** to reference modules.
-  - Example:
-    ```typescript
-    import { fetchData as getData } from './apiClient';
-    ```
+## Knowledge Loop (summary)
 
-### Export Style
-- Use **named exports** for all modules.
-  - Example:
-    ```typescript
-    // In userProfile.ts
-    export function getUserProfile(id: string) { ... }
-    export const USER_ROLE = 'admin';
-    ```
-
-### Commit Messages
-- Follow **conventional commit** format.
-- Use the `feat` prefix for new features.
-- Keep commit messages concise (average 71 characters).
-  - Example:
-    ```
-    feat: add user authentication middleware
-    ```
-
-## Workflows
-
-### Feature Development
-**Trigger:** When implementing a new feature  
-**Command:** `/feature`
-
-1. Create a new branch for your feature.
-2. Write code following the coding conventions.
-3. Use named exports and alias imports as needed.
-4. Write or update corresponding test files (`*.test.*`).
-5. Commit changes using the `feat` prefix and a descriptive message.
-6. Open a pull request for review.
-
-### Testing Code
-**Trigger:** Before pushing or merging changes  
-**Command:** `/test`
-
-1. Identify or create test files matching `*.test.*`.
-2. Run the test suite using your preferred test runner.
-3. Ensure all tests pass before proceeding.
-
-## Testing Patterns
-
-- Test files follow the `*.test.*` pattern (e.g., `userProfile.test.ts`).
-- The specific testing framework is not defined; use your team's preferred runner.
-- Example test file:
-  ```typescript
-  // userProfile.test.ts
-  import { getUserProfile } from './userProfile';
-
-  describe('getUserProfile', () => {
-    it('returns user data for valid ID', () => {
-      expect(getUserProfile('123')).toEqual({ id: '123', name: 'Alice' });
-    });
-  });
-  ```
-
-## Commands
-| Command    | Purpose                                 |
-|------------|-----------------------------------------|
-| /feature   | Start a new feature development workflow |
-| /test      | Run the test suite                      |
 ```
+DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF
+```
+
+| Phase | Do |
+| --- | --- |
+| DETECT | Triggered by new behavior/API/MCP/docs/skills; if unclear → ASK |
+| CLASSIFY | Types: `WF` `MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` `OPS` |
+| BUILD | Owning package seam; maintain propagation checklist |
+| PROPAGATE | Apply type→surface matrix in knowledge-loop.md |
+| VERIFY | No open P0/P1; MCP drift test if MCP touched |
+| HANDOFF | Built · knowledge · verified · risks · user next step |
+
+### Surfaces
+
+| ID | Path |
+| --- | --- |
+| S_CODE | runtime source |
+| S_DOCS | `docs/**` |
+| S_CHILD / S_ROOT | nested / root `AGENTS.md` |
+| S_MCP_T / S_MCP_I | tool docstrings / `instructions.py` |
+| S_VPG | `api/services/voice_prompting_guide` |
+| S_SKILL / S_PROMPT | `.agents/skills/**` / `.agents/prompts/**` |
+
+### Hard rules
+
+1. Ask when unclear — no invented business/compliance/telephony facts.
+2. Document everything reusable in the same change.
+3. Code without knowledge is incomplete (explicit emergency deferral only).
+4. Single source of truth — no triple-copy of long procedures.
+5. Prefer extending existing skills/guides/tools.
+
+## Checklists
+
+### Platform change
+1. Clarify goal + owner (ask if needed) → classify types
+2. Implement smallest correct change
+3. Propagate per matrix in knowledge-loop.md
+4. Verify (incl. `api/tests/test_mcp_instructions_drift.py` if MCP)
+5. Handoff report
+
+### Voice agent via MCP (`WF`)
+1. Plan: `get_voice_prompting_guide` `stage=plan` + questions + confirmation
+2. Create: guide `stage=create` / `node_type` / `topic=common_guidelines` for globalNode
+3. `create_workflow` or `save_workflow`; full source on errors
+4. Review: `stage=review`
+5. Build notes + test checklist; template request → also DOC/AGT
+
+## Do not
+- Ship with silent knowledge drift
+- Name unregistered MCP tools in `instructions.py`
+- Put secrets in the repo
+- Skip ASK when success criteria are unknown

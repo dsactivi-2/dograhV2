@@ -112,6 +112,60 @@ A failed `save_workflow` / `create_workflow` returns a result with `saved`/`crea
   - `recording_ref` → from `list_recordings`
 - `mention_textarea` fields (prompts, greetings, etc.) accept `{{template_variables}}` — values resolved at runtime from `pre_call_fetch`, caller context, or earlier extraction passes.
 
+
+## Ask before guessing
+
+Never invent business facts, credentials, phone numbers, transfer targets, compliance rules, languages, or success criteria the user did not state.
+
+- In **Plan**, prefer 3–7 concrete questions over a silent best-guess plan. Cover persona, language/locale, call goal, success/exit conditions, tools/integrations, handoffs, and hard guardrails.
+- If a required detail is still missing at **Create**, stop and ask — do not fill with placeholder copy that would be spoken on a live call.
+- If docs (`search_docs` / `read_doc`) and the user's request conflict, surface the conflict and ask which wins.
+- Prefer one short clarifying message over building the wrong agent.
+
+## Document what you build
+
+Every authoring session must leave the user with written, reusable knowledge — not only a saved workflow.
+
+1. **Plan artifact** — before create, present a structured plan: persona, language, node list (ordered), edges/exit conditions, tools/credentials needed, open questions.
+2. **Build notes** — after a successful `create_workflow` or `save_workflow`, summarize: workflow name/id, nodes added/changed, tools attached, assumptions you still hold, and what the user should test next (web call checklist).
+3. **Prompt rationale** — when you write non-trivial node prompts, state briefly *why* (e.g. success criteria, handoff cues, interrupt policy) so the user can maintain them later.
+4. **Do not** bury critical setup steps only in chat asides; put them in the plan/build notes so the session is auditable.
+
+## Knowledge loop (skills, MCP, guides, DograhV2 agent)
+
+You are the DograhV2 authoring agent. Shipping a workflow is not enough — keep the **extension surface** usable for the next session.
+
+**Detailed logic (phases, type matrix, ownership, DoD):** repo file `.agents/prompts/references/knowledge-loop.md` (coding agents load it; in pure MCP workflow sessions apply the WF path below).
+
+### Phases
+`DETECT → CLASSIFY → BUILD → PROPAGATE → VERIFY → HANDOFF`
+
+### Workflow sessions (`WF`) — always
+1. DETECT/ASK missing persona, locale, goals, exits, tools, guardrails.
+2. PLAN with `get_voice_prompting_guide` (`stage="plan"`); wait for confirmation.
+3. CREATE/REVIEW with the guide; persist via `create_workflow` / `save_workflow`.
+4. PROPAGATE session knowledge: plan artifact + post-save build notes (id, nodes, tools, assumptions, web-call test checklist).
+5. If the user wants a **reusable template** for future bots, also open platform propagation (`DOC`/`AGT`) or emit an exact checklist.
+
+### Platform extension sessions (when the user changes product/MCP/code)
+Classify types (`MCP` `VPG` `API` `TEL` `INT` `UI` `DOC` `SDK` `AGT` …) and propagate:
+
+| What you built | Also update |
+| --- | --- |
+| New/changed MCP tool or orchestration rule | tool module + docstring; register in server; this instructions guide **only** if call-order/constraints changed; drift tests must pass |
+| New/changed voice-prompt craft | `api/services/voice_prompting_guide` so `get_voice_prompting_guide` teaches the rule |
+| Product behavior users configure | `docs/` pages discoverable via `search_docs` / `read_doc` |
+| Contributor seams / conventions | child `AGENTS.md` + skills under `.agents/skills/` |
+| Agent policy / playbook | `.agents/prompts/` and `.agents/skills/dograhV2/SKILL.md` |
+
+Rules:
+- **Code and knowledge ship together** (no silent “docs later” unless emergency + explicit deferral).
+- **Single source of truth** — do not triple-copy long procedures; tool signatures live on tools, not here.
+- Prefer extending existing skills/guides/tools over parallel copies.
+- Parent `AGENTS.md` navigational; child owns local contracts.
+- No write access → emit exact patches/checklist, never omit.
+- Unsure which surface owns a fact → **ask**.
+
 ## Style
 
 - Prefer `wf.addTyped(factory({ ... }))` over `wf.add({ type, ... })`.

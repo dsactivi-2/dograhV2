@@ -24,3 +24,11 @@ The generated baseline enables GitHub, Context7, Exa, Memory, Playwright, and Se
 - No dedicated workflow command files were generated for this repo.
 
 Use these workflow files as reusable task scaffolds when the detected repository workflows recur.
+## DograhV2 agent prompt
+
+- System prompt: `.agents/prompts/dograhv2-agent-system.md`
+- Knowledge loop (document + extend skills/MCP/guides) is mandatory — see root `AGENTS.md`.
+
+## Knowledge Loop
+
+- Detailed logic: `.agents/prompts/references/knowledge-loop.md`
