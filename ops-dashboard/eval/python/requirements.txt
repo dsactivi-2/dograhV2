@@ -1,0 +1,7 @@
+# Optional offline eval stack (Python 3.10+)
+# Install: python3 -m venv .venv && . .venv/bin/activate && pip install -r eval/python/requirements.txt
+deepeval>=2.0.0
+ragas>=0.2.0
+openai>=1.40.0
+langfuse>=2.0.0
+pydantic>=2.0.0

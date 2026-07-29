@@ -1,0 +1,61 @@
+# Scaffold: enable when this dashboard lives in a GitHub repo with secrets configured.
+name: eval
+
+on:
+  pull_request:
+    paths:
+      - "eval/**"
+      - "src/lib/dograh/qa.ts"
+      - "src/lib/eval/**"
+  workflow_dispatch:
+
+jobs:
+  promptfoo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install promptfoo
+        run: npm i -g promptfoo
+      - name: Run promptfoo suite
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "OPENAI_API_KEY not set — skipping live promptfoo (config still validated as present)."
+            test -f eval/promptfoo.yaml
+            test -f eval/rubric.json
+            exit 0
+          fi
+          promptfoo eval -c eval/promptfoo.yaml --no-cache
+
+  qa-parser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install deps
+        run: npm ci || npm install
+      - name: Typecheck
+        run: npm run typecheck
+
+  deepeval-optional:
+    runs-on: ubuntu-latest
+    if: ${{ vars.RUN_DEEPEVAL == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python eval stack
+        run: pip install -r eval/python/requirements.txt
+      - name: DeepEval sample
+        env:
+          EVAL_DEEPEVAL: "true"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python eval/python/run_deepeval.py --text "BOT: Hi, do you have a minute? USER: Do not call me again. BOT: Understood, we will not contact you. Goodbye."
