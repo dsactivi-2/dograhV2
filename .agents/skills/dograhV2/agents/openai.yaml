@@ -1,0 +1,6 @@
+interface:
+  display_name: "DograhV2"
+  short_description: "Repo-specific patterns and workflows for dograhV2"
+  default_prompt: "Use the dograhV2 repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
