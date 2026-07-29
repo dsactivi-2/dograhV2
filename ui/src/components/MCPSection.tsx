@@ -55,13 +55,17 @@ export function MCPSection() {
         <Label>MCP Endpoint</Label>
         <p className="text-xs text-muted-foreground">
           Connect an MCP-compatible AI assistant to this URL over Streamable
-          HTTP. Requires an API key in the X-API-Key header.{" "}
+          HTTP. Authenticate with a short-lived access token (
+          <code className="text-[0.7rem]">Authorization: Bearer …</code>) or an
+          API key (
+          <code className="text-[0.7rem]">X-API-Key</code>
+          ).{" "}
           <Link
             href="/api-keys"
             target="_blank"
             className="text-primary underline hover:no-underline"
           >
-            Get your API key
+            Get an API key
           </Link>
         </p>
         <div className="grid gap-3">
@@ -95,14 +99,15 @@ export function MCPSection() {
         {tunnelUrl && (
           <p className="text-xs text-muted-foreground">
             Use the public URL from externally-hosted assistants; the backend URL
-            works from the deployment&apos;s own network.
+            works from the deployment's own network.
           </p>
         )}
       </div>
 
       <p className="text-xs text-muted-foreground">
         For step-by-step setup with Claude Code, Claude Desktop, Cursor, and
-        other clients, see the{" "}
+        other clients (including access-token auth without a permanent API
+        key), see the{" "}
         <Link
           href="https://docs.dograh.com/integrations/mcp"
           target="_blank"
