@@ -10,7 +10,7 @@
 | **P2** Text-Chat Eval Harness | **MVP core** | `/api/v1/evals/text/run`, UI `/evals` |
 | **P3** Campaign Tower + Cost | **MVP** | `/api/v1/campaign-ops/*`, `/api/v1/cost-attribution/*`, UI `/campaigns/ops` + `/costs` |
 | **P4** QA Center + Compliance | **MVP** | `/api/v1/qa-center/*`, UI `/qa-center`, override + audit |
-| **P5** Schulung MVP | planned | `/training` shadow + text |
+| **P5** Schulung MVP | **MVP** | `/api/v1/training/*`, UI `/training`, shadow + text drills |
 | **P6** Voice-Eval | later | full voice training |
 
 ## P0 Endpoints
@@ -61,6 +61,16 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - Docs: `docs/internal/qa-center.md`
 - Reuse: schema-v1 QA + annotations merge + ARQ; no new tables
 
+## P5 Training / Schulung
+- Tables: `training_modules`, `training_attempts` (migration `e4f5a6b7c8d9`)
+- `GET/POST /api/v1/training/modules`
+- `GET /api/v1/training/progress` — per-user completion
+- `POST /api/v1/training/modules/{id}/shadow/complete` — quiz score
+- `POST /api/v1/training/modules/{id}/text/run` — P2 text harness + success-set score
+- UI: `/training`
+- Docs: `docs/internal/training.md`
+- Reuse: text-eval harness, disposition success codes, org auth
+
 ## UI typed clients (until OpenAPI regen)
 - `ui/src/lib/api/outcomes.ts`
 - `ui/src/lib/api/disposition.ts`
@@ -69,8 +79,9 @@ Stored on `workflows.call_disposition_codes` (backward-compatible extension).
 - `ui/src/lib/api/campaignOps.ts`
 - `ui/src/lib/api/costAttribution.ts`
 - `ui/src/lib/api/qaCenter.ts`
+- `ui/src/lib/api/training.ts`
 
 Regenerate hey-api client when API is running: `cd ui && npm run generate-client`.
 
 ## Reuse
-Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · annotations override audit · no Meilisearch/Celery
+Postgres JSON + FTS · ARQ post-call QA · Reports disposition · Org auth · Superuser · Text-chat runner · Campaign queued_runs · cost_info/usage_info · annotations override audit · training attempts · no Meilisearch/Celery

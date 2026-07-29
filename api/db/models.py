@@ -1680,3 +1680,84 @@ class ScriptLibraryEntryModel(Base):
         Index("ix_script_library_status", "approval_status"),
         Index("ix_script_library_owner", "owner_user_id"),
     )
+
+
+class TrainingModuleModel(Base):
+    """Org-scoped training module for agent coaching (P5).
+
+    mode: shadow (script + quiz) | text (scripted text-chat drill via eval harness)
+    content JSON holds mode-specific payload (script_excerpt, quiz, scenario, …).
+    """
+
+    __tablename__ = "training_modules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False, default="")
+    mode = Column(
+        String(32), nullable=False, default="shadow", server_default=text("'shadow'")
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    script_entry_id = Column(
+        Integer,
+        ForeignKey("script_library_entries.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # success disposition codes used when scoring text drills
+    success_codes = Column(JSON, nullable=False, default=list)
+    tags = Column(JSON, nullable=False, default=list)
+    difficulty = Column(
+        String(32), nullable=False, default="beginner", server_default=text("'beginner'")
+    )
+    pass_score = Column(Float, nullable=False, default=70.0)
+    content = Column(JSON, nullable=False, default=dict)
+    is_published = Column(Boolean, nullable=False, default=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index("ix_training_modules_org", "organization_id"),
+        Index("ix_training_modules_mode", "mode"),
+        Index("ix_training_modules_published", "is_published"),
+    )
+
+
+class TrainingAttemptModel(Base):
+    """Per-user attempt at a training module (progress + score)."""
+
+    __tablename__ = "training_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    module_id = Column(
+        Integer, ForeignKey("training_modules.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    mode = Column(String(32), nullable=False)
+    score = Column(Float, nullable=False, default=0.0)
+    passed = Column(Boolean, nullable=False, default=False)
+    # full result payload (quiz answers, eval turns, disposition, …)
+    result = Column(JSON, nullable=False, default=dict)
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+
+    __table_args__ = (
+        Index("ix_training_attempts_org", "organization_id"),
+        Index("ix_training_attempts_module", "module_id"),
+        Index("ix_training_attempts_user", "user_id"),
+        Index("ix_training_attempts_user_module", "user_id", "module_id"),
+    )

@@ -18,6 +18,7 @@ from api.db.stepsales_client import StepsalesClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
+from api.db.training_client import TrainingClient
 from api.db.user_client import UserClient
 from api.db.webhook_credential_client import WebhookCredentialClient
 from api.db.webhook_delivery_client import WebhookDeliveryClient
@@ -57,6 +58,7 @@ class DBClient(
     ScriptLibraryClient,
     CampaignOpsClient,
     CostAttributionClient,
+    TrainingClient,
 ):
     """
     Unified database client that combines all specialized database operations.

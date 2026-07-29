@@ -14,6 +14,7 @@ import {
   FileCode2,
   FileText,
   FlaskConical,
+  GraduationCap,
   Home,
   Key,
   LogOut,
@@ -169,6 +170,11 @@ const NAV_SECTIONS: SidebarNavSection[] = [
         title: "QA Center",
         url: "/qa-center",
         icon: ClipboardCheck,
+      },
+      {
+        title: "Training",
+        url: "/training",
+        icon: GraduationCap,
       },
       {
         title: "Scripts",

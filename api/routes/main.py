@@ -31,6 +31,7 @@ from api.routes.outcomes import router as outcomes_router
 from api.routes.superuser import router as superuser_router
 from api.routes.telephony import router as telephony_router
 from api.routes.tool import router as tool_router
+from api.routes.training import router as training_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
 from api.routes.webrtc_signaling import router as webrtc_signaling_router
@@ -64,6 +65,7 @@ router.include_router(disposition_taxonomy_router)
 router.include_router(scripts_router)
 router.include_router(evals_router)
 router.include_router(qa_center_router)
+router.include_router(training_router)
 router.include_router(organization_usage_router)
 router.include_router(reports_router)
 router.include_router(webrtc_signaling_router)
