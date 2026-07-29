@@ -141,8 +141,10 @@ api_router.include_router(main_router)
 # main router with api prefix
 app.include_router(api_router, prefix=API_PREFIX)
 
-# Mount the MCP server — agents reach it at /api/v1/mcp over Streamable HTTP,
-# authenticating with the same X-API-Key header used by the REST API.
+# Mount the MCP server — agents reach it at /api/v1/mcp over Streamable HTTP.
+# Auth accepts X-API-Key (long-lived API key), Authorization: Bearer dgr_...
+# (API key), or Authorization: Bearer <access_token> (Stack Auth / local JWT).
+# See api/mcp_server/auth.py and docs/integrations/mcp.mdx.
 # Mounted under /api/v1 so existing reverse-proxy rules (nginx etc.) route it
 # without any extra configuration.
 app.mount(f"{API_PREFIX}/mcp", mcp_app)

@@ -5,14 +5,14 @@ description: "How to authenticate requests to the Dograh API"
 
 ## API key authentication
 
-API keys are the recommended way to authenticate programmatic requests. Pass your key in the `X-API-Key` request header.
+API keys are the recommended way to authenticate long-lived programmatic requests. Pass your key in the `X-API-Key` request header.
 
 ```bash
 curl https://your-dograh-instance/api/v1/workflow/fetch \
-  -H "X-API-Key: dg_your_api_key"
+  -H "X-API-Key: dgr_your_api_key"
 ```
 
-API keys are scoped to an organization. All resources created or accessed using a key belong to that organization.
+API keys are scoped to an organization. All resources created or accessed using a key belong to that organization. Keys are minted with a `dgr_` prefix.
 
 ### Create an API key
 
@@ -32,6 +32,24 @@ For self-hosted deployments using local auth, sign up and log in via the dashboa
 | Reactivate key | `PUT` | `/user/api-keys/{api_key_id}/reactivate` |
 
 Archiving a key immediately revokes it. All subsequent requests using that key return `401`.
+
+---
+
+## Access token authentication (Bearer)
+
+You can also authenticate with a short-lived access token instead of a permanent API key. Pass it as:
+
+```bash
+curl https://your-dograh-instance/api/v1/workflow/fetch \
+  -H "Authorization: Bearer <access_token>"
+```
+
+| Deployment | How to obtain a token |
+|---|---|
+| Self-hosted (`AUTH_PROVIDER=local`) | `POST /api/v1/auth/login` or `/auth/signup` — response includes a JWT |
+| Hosted (`AUTH_PROVIDER=stack`) | Stack Auth session access token (same token the web app uses) |
+
+This is the preferred path for MCP clients and interactive agents that should not store long-lived API keys. See [MCP Server](/integrations/mcp#authentication).
 
 ---
 
