@@ -298,31 +298,163 @@ else
   fi
 fi
 
-# ── 6 API internal processes ──────────────────────────────────────────────
+# ── 6 API multi-process deep analysis ─────────────────────────
 log
-log "=== 6) API multi-process (uvicorn / arq / orchestrator / ari) ==="
-if [[ -n "$API_CID" ]]; then
-  # Slim API image has no `ps`. Prefer host-side docker top, then /proc cmdline.
-  PS="$(docker top "$API_CID" -eo pid,cmd 2>/dev/null || true)"
-  if [[ -z "$PS" ]]; then
-    PS="$(docker exec "$API_CID" sh -c 'for f in /proc/[0-9]*/cmdline; do tr "\0" " " <"$f" 2>/dev/null; echo; done' 2>/dev/null || true)"
+log "=== 6) API multi-process deep analysis ==="
+log "Expected (start_services_docker.sh):"
+log "  ari_manager | campaign_orchestrator | uvicorn0..N-1 | arq1..M"
+log "  FASTAPI_WORKERS controls how many uvicorn ports (8000+)"
+log
+
+if [[ -z "${API_CID:-}" ]]; then
+  bad "api processes" "no api container"
+else
+  FW="${FASTAPI_WORKERS:-1}"
+  [[ "$FW" =~ ^[0-9]+$ ]] || FW=1
+
+  # --- Evidence A: process table (no `ps` needed) ---
+  TOP_OUT="$(docker top "$API_CID" 2>/dev/null || true)"
+  TOP_CMD="$(docker top "$API_CID" -eo pid,cmd 2>/dev/null || true)"
+  PROC_CMDS="$(docker exec "$API_CID" sh -c 'for f in /proc/[0-9]*/cmdline; do [ -r "$f" ] || continue; tr "\0" " " <"$f"; echo; done' 2>/dev/null || true)"
+  BUNDLE="${TOP_OUT}
+${TOP_CMD}
+${PROC_CMDS}"
+  LIST_OK=no
+  if [[ -n "$(echo "$BUNDLE" | tr -d "[:space:]")" ]]; then
+    LIST_OK=yes
   fi
-  echo "$PS" | head -25
-  if echo "$PS" | grep -qi uvicorn; then
-    uvc="$(echo "$PS" | grep -ci uvicorn || true)"
-    ok "process uvicorn" "found (lines≈$uvc; FASTAPI_WORKERS=${FASTAPI_WORKERS:-?})"
+
+  log "--- process listing (docker top + /proc/cmdline), first 30 non-empty lines ---"
+  if [[ "$LIST_OK" == "yes" ]]; then
+    echo "$BUNDLE" | sed "/^$/d" | head -30
+    nlines="$(echo "$BUNDLE" | sed "/^$/d" | wc -l | tr -d " ")"
+    ok "process list tooling" "readable (${nlines} lines via docker top and/or /proc)"
   else
-    if curl -sk -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/v1/health 2>/dev/null | grep -q 200; then
-      warn "process uvicorn" "not listed via docker top//proc but :8000 health=200"
+    warn "process list tooling" "EMPTY — cannot list PIDs (slim image / restricted). Will use health + startup logs."
+  fi
+
+  # --- Evidence B: startup markers from start_services_docker.sh ---
+  START_LOG="$(docker logs "$API_CID" 2>&1 | grep -E "→ Starting|Starting Dograh Services" | tail -50 || true)"
+  log "--- startup markers (container logs) ---"
+  if [[ -n "$START_LOG" ]]; then
+    echo "$START_LOG"
+    ok "startup log markers" "found '→ Starting …' lines"
+  else
+    warn "startup log markers" "none found (logs rotated or different entrypoint)"
+  fi
+
+  TEAR="$(docker logs "$API_CID" 2>&1 | grep -iE "A service exited|tearing down|exited with" | tail -8 || true)"
+  if [[ -n "$TEAR" ]]; then
+    warn "api child exit markers" "a supervised process may have died"
+    echo "$TEAR"
+  else
+    ok "api child exit markers" "no tear-down/exit lines in recent logs"
+  fi
+
+  proc_seen() { echo "$BUNDLE" | grep -qiE "$1"; }
+
+  # ----- uvicorn -----
+  log
+  log "--- uvicorn (HTTP/WebSocket API) ---"
+  UV_SEEN=no; UV_START=no
+  proc_seen "uvicorn|api\\.app:app" && UV_SEEN=yes
+  echo "$START_LOG" | grep -qE "→ Starting uvicorn[0-9]+" && UV_START=yes
+  HCODE="$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:8000/api/v1/health 2>/dev/null || echo 000)"
+  PORTS_OPEN=0
+  for ((i=0; i<FW; i++)); do
+    p=$((8000+i))
+    ss -lnt 2>/dev/null | grep -qE ":${p}\\b" && PORTS_OPEN=$((PORTS_OPEN+1)) || true
+  done
+  log "  diagnostics: in_process_table=$UV_SEEN startup_log=$UV_START health=$HCODE ports_open=$PORTS_OPEN/$FW list_ok=$LIST_OK"
+
+  if [[ "$UV_SEEN" == "yes" ]]; then
+    hit="$(echo "$BUNDLE" | grep -iE "uvicorn|api\\.app:app" | head -4 | tr "\\n" " ; " | cut -c1-200)"
+    ok "process uvicorn" "DEFINITELY RUNNING (seen in process table). $hit"
+  elif [[ "$HCODE" == "200" ]]; then
+    why="RUNNING (proven by health=200, ports $PORTS_OPEN/$FW)"
+    if [[ "$LIST_OK" == "no" ]]; then
+      why="$why | Ursache: Prozessliste leer — KEIN toter uvicorn, nur nicht sichtbar"
+    elif [[ "$UV_START" == "yes" ]]; then
+      why="$why | startup log started uvicorn*; cmdline not matched"
     else
-      bad "process uvicorn" "not found and API health not 200"
+      why="$why | not matched as string in table but HTTP proves live"
+    fi
+    ok "process uvicorn" "$why"
+  else
+    bad "process uvicorn" "NOT RUNNING/BROKEN: no table match, health=$HCODE, ports=$PORTS_OPEN/$FW, startup=$UV_START"
+  fi
+  if [[ "$FW" -gt 1 ]]; then
+    if [[ "$PORTS_OPEN" -ge "$FW" ]]; then
+      ok "uvicorn workers" "all $FW worker ports listening (8000..$((8000+FW-1)))"
+    elif [[ "$PORTS_OPEN" -ge 1 ]]; then
+      warn "uvicorn workers" "only $PORTS_OPEN/$FW ports open — some workers may be down (nginx least_conn)"
+    else
+      bad "uvicorn workers" "0/$FW ports open"
     fi
   fi
-  echo "$PS" | grep -qiE 'arq|WorkerSettings' && ok "process arq" "found" || warn "process arq" "not found (background jobs may be down)"
-  echo "$PS" | grep -qi campaign_orchestrator && ok "process campaign_orchestrator" "found" || warn "process campaign_orchestrator" "not found"
-  echo "$PS" | grep -qi ari_manager && ok "process ari_manager" "found" || warn "process ari_manager" "not found (ok if no Asterisk telephony)"
-else
-  bad "api processes" "no api container"
+
+  # ----- arq -----
+  log
+  log "--- arq (background job worker / Redis queue) ---"
+  ARQ_SEEN=no; ARQ_START=no
+  proc_seen "arq|WorkerSettings" && ARQ_SEEN=yes
+  echo "$START_LOG" | grep -qE "→ Starting arq" && ARQ_START=yes
+  log "  diagnostics: in_process_table=$ARQ_SEEN startup_log=$ARQ_START list_ok=$LIST_OK"
+  if [[ "$ARQ_SEEN" == "yes" ]]; then
+    ok "process arq" "DEFINITELY RUNNING (process table)"
+  elif [[ "$ARQ_START" == "yes" && "$LIST_OK" == "no" ]]; then
+    ok "process arq" "LIKELY RUNNING — startup log has → Starting arq*; process list unavailable (tooling blind, not crash proof)"
+  elif [[ "$ARQ_START" == "yes" ]]; then
+    warn "process arq" "STARTED in log but NOT in process table now — may have exited. Impact: background jobs stuck. Check: docker logs <api> 2>&1 | grep -i arq"
+  elif [[ "$LIST_OK" == "no" ]]; then
+    warn "process arq" "NOT PROVEN — cannot list processes and no startup marker found. Jobs MAY be down. Impact: async tasks/webhooks/retries."
+  else
+    warn "process arq" "NOT RUNNING (likely) — no process match, no startup marker. Impact: background jobs/queue down."
+  fi
+
+  # ----- campaign_orchestrator -----
+  log
+  log "--- campaign_orchestrator (outbound campaign scheduler) ---"
+  CO_SEEN=no; CO_START=no
+  proc_seen "campaign_orchestrator|campaign\\.campaign_orchestrator" && CO_SEEN=yes
+  echo "$START_LOG" | grep -qE "→ Starting campaign_orchestrator" && CO_START=yes
+  log "  diagnostics: in_process_table=$CO_SEEN startup_log=$CO_START list_ok=$LIST_OK"
+  if [[ "$CO_SEEN" == "yes" ]]; then
+    ok "process campaign_orchestrator" "DEFINITELY RUNNING (process table)"
+  elif [[ "$CO_START" == "yes" && "$LIST_OK" == "no" ]]; then
+    ok "process campaign_orchestrator" "LIKELY RUNNING — startup log ok; process list unavailable (tooling blind)"
+  elif [[ "$CO_START" == "yes" ]]; then
+    warn "process campaign_orchestrator" "STARTED in log but NOT in table now — campaigns may be broken"
+  elif [[ "$LIST_OK" == "no" ]]; then
+    warn "process campaign_orchestrator" "NOT PROVEN (tooling blind + no startup marker). Impact: outbound campaigns only; single WebRTC calls still work."
+  else
+    warn "process campaign_orchestrator" "NOT RUNNING (likely). Impact: campaign dialing/scheduling down. Single test calls OK."
+  fi
+
+  # ----- ari_manager -----
+  log
+  log "--- ari_manager (Asterisk ARI telephony bridge) ---"
+  ARI_SEEN=no; ARI_START=no
+  proc_seen "ari_manager|telephony\\.ari_manager" && ARI_SEEN=yes
+  echo "$START_LOG" | grep -qE "→ Starting ari_manager" && ARI_START=yes
+  log "  diagnostics: in_process_table=$ARI_SEEN startup_log=$ARI_START list_ok=$LIST_OK"
+  if [[ "$ARI_SEEN" == "yes" ]]; then
+    ok "process ari_manager" "DEFINITELY RUNNING (process table)"
+  elif [[ "$ARI_START" == "yes" && "$LIST_OK" == "no" ]]; then
+    ok "process ari_manager" "LIKELY RUNNING — startup log ok; process list unavailable (tooling blind)"
+  elif [[ "$ARI_START" == "yes" ]]; then
+    warn "process ari_manager" "STARTED in log but NOT in table now"
+  else
+    warn "process ari_manager" "NOT PROVEN/likely absent. Only needed for Asterisk PBX. WebRTC and many cloud SIP setups work without it."
+  fi
+
+  log
+  log "--- Legende ---"
+  log "  DEFINITELY RUNNING = in process table seen"
+  log "  LIKELY RUNNING     = startup log + tooling blind (not declared dead)"
+  log "  NOT PROVEN         = no table + no log — could be missing"
+  log "  NOT RUNNING        = evidence of absence"
+  log "  uvicorn health=200 always means API is up regardless of ps"
 fi
 
 # ── 7 Ports ───────────────────────────────────────────────────────────────
