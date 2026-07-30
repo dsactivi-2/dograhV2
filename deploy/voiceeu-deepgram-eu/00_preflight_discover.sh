@@ -38,13 +38,20 @@ echo
 # --- helpers ---------------------------------------------------------------
 have() { command -v "$1" >/dev/null 2>&1; }
 
-kv() { # kv KEY value  → accumulate for .env report
+kv() { # kv KEY value  → accumulate for .env report (always quoted for safe source)
   local k="$1"; shift
   local v="$*"
-  # escape for single-line env
-  v="${v//$'\n'/\\n}"
-  printf '%s=%s\n' "$k" "$v" >>"$ENV_OUT.tmp"
-  printf '  %-28s %s\n' "$k" "$v"
+  # single-line + escape chars unsafe in double quotes
+  v="${v//$'
+'/\n}"
+  v="${v//\/\\}"
+  v="${v//\"/\\"}"
+  v="${v//\$/\$}"
+  v="${v//\`/\\`}"
+  printf '%s="%s"
+' "$k" "$v" >>"$ENV_OUT.tmp"
+  printf '  %-28s %s
+' "$k" "$v"
 }
 
 : >"$ENV_OUT.tmp"
