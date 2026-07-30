@@ -38,21 +38,19 @@ echo
 # --- helpers ---------------------------------------------------------------
 have() { command -v "$1" >/dev/null 2>&1; }
 
-kv() { # kv KEY value  → accumulate for .env report (always quoted for safe source)
+kv() { # kv KEY value  → accumulate for .env report (quoted for safe parsing)
   local k="$1"; shift
   local v="$*"
-  # single-line + escape chars unsafe in double quotes
-  v="${v//$'
-'/\n}"
-  v="${v//\/\\}"
-  v="${v//\"/\\"}"
-  v="${v//\$/\$}"
-  v="${v//\`/\\`}"
-  printf '%s="%s"
-' "$k" "$v" >>"$ENV_OUT.tmp"
-  printf '  %-28s %s
-' "$k" "$v"
+  # single-line; escape for double-quoted env values
+  v="${v//$'\n'/\\n}"
+  v="${v//\\/\\\\}"
+  v="${v//\"/\\\"}"
+  v="${v//\$/\\$}"
+  v="${v//\`/\\\`}"
+  printf '%s="%s"\n' "$k" "$v" >>"$ENV_OUT.tmp"
+  printf '  %-28s %s\n' "$k" "$v"
 }
+
 
 : >"$ENV_OUT.tmp"
 kv PREFLIGHT_TS "$TS"
