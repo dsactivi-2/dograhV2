@@ -228,35 +228,38 @@ else
   # Python runtime assertion (authoritative)
   log
   log "=== B6) Python runtime wiring ==="
-  PY_OUT="$(docker exec "$CID" python - <<'PY' 2>&1 || true
+  # docker exec needs -i for stdin heredoc; prefer -c for reliability
+  PY_OUT="$(docker exec "$CID" python -c "
 import sys
-errors = []
 try:
     from api.constants import DEEPGRAM_BASE_URL
 except Exception as e:
-    print("IMPORT_CONST_FAIL", type(e).__name__, e)
+    print('IMPORT_CONST_FAIL', type(e).__name__, e)
     sys.exit(2)
-print("DEEPGRAM_BASE_URL", DEEPGRAM_BASE_URL)
-if DEEPGRAM_BASE_URL.rstrip("/") != "api.eu.deepgram.com" and "api.eu.deepgram.com" not in DEEPGRAM_BASE_URL:
-    # allow override via env if explicitly set to eu
-    print("BASE_NOT_EU", DEEPGRAM_BASE_URL)
+print('DEEPGRAM_BASE_URL', DEEPGRAM_BASE_URL)
+base = DEEPGRAM_BASE_URL.rstrip('/')
+if base != 'api.eu.deepgram.com' and 'api.eu.deepgram.com' not in DEEPGRAM_BASE_URL:
+    print('BASE_NOT_EU', DEEPGRAM_BASE_URL)
     sys.exit(3)
 try:
     from api.services.pipecat.service_factory import _deepgram_inference_urls
     stt, flux, tts = _deepgram_inference_urls()
-    print("STT_BASE", stt)
-    print("FLUX_URL", flux)
-    print("TTS_BASE", tts)
-    assert stt.replace("https://","").replace("wss://","").split("/")[0] == "api.eu.deepgram.com" or stt.endswith("api.eu.deepgram.com") or stt == "api.eu.deepgram.com"
-    assert "api.eu.deepgram.com" in flux
-    assert "api.eu.deepgram.com" in tts
-    print("URLS_OK")
+    print('STT_BASE', stt)
+    print('FLUX_URL', flux)
+    print('TTS_BASE', tts)
+    host = stt.replace('https://','').replace('wss://','').split('/')[0]
+    if host != 'api.eu.deepgram.com' and not stt.endswith('api.eu.deepgram.com'):
+        print('STT_NOT_EU', stt)
+        sys.exit(4)
+    if 'api.eu.deepgram.com' not in flux or 'api.eu.deepgram.com' not in tts:
+        print('URLS_NOT_EU', flux, tts)
+        sys.exit(4)
+    print('URLS_OK')
 except Exception as e:
-    print("FACTORY_FAIL", type(e).__name__, e)
+    print('FACTORY_FAIL', type(e).__name__, e)
     sys.exit(4)
-print("ALL_OK")
-PY
-)"
+print('ALL_OK')
+" 2>&1 || true)"
   log "$PY_OUT"
   if echo "$PY_OUT" | grep -q 'ALL_OK'; then
     ok "B6 Python DEEPGRAM_BASE_URL + inference URLs" "$(echo "$PY_OUT" | tr '\n' ' ' | cut -c1-200)"
