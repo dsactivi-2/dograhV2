@@ -55,6 +55,14 @@ STACK_AUTH_PROJECT_ID = os.getenv("STACK_AUTH_PROJECT_ID")
 STACK_PUBLISHABLE_CLIENT_KEY = os.getenv("STACK_PUBLISHABLE_CLIENT_KEY")
 DOGRAH_MPS_SECRET_KEY = os.getenv("DOGRAH_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.dograh.com")
+
+# Deepgram regional inference endpoint (STT / TTS / Flux WebSocket + REST).
+# Default targets the EU data residency host. Override with DEEPGRAM_BASE_URL
+# (hostname, or scheme+host). Management APIs (projects/keys validation) still
+# use the global api.deepgram.com — EU has no /v1/projects.
+DEEPGRAM_BASE_URL = (
+    os.getenv("DEEPGRAM_BASE_URL", "api.eu.deepgram.com").strip().rstrip("/")
+)
 DOGRAH_DEVOPS_SECRET = os.getenv("DOGRAH_DEVOPS_SECRET") or None
 
 # Storage Configuration
