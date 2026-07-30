@@ -360,18 +360,36 @@ ${PROC_CMDS}"
   proc_seen "uvicorn|api\\.app:app" && UV_SEEN=yes
   echo "$START_LOG" | grep -qE "→ Starting uvicorn[0-9]+" && UV_START=yes
   HCODE="$(curl -sk -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:8000/api/v1/health 2>/dev/null || echo 000)"
-  PORTS_OPEN=0
+  # Count workers by process table (authoritative) AND in-container listen ports.
+  # Host ss only sees published 8000 — workers 8001+ are docker-network only.
+  UV_PROCS=0
+  if [[ "$LIST_OK" == "yes" ]]; then
+    UV_PROCS="$(echo "$BUNDLE" | grep -cE "uvicorn api\.app:app|/uvicorn api\.app:app" || true)"
+    # docker top prints each worker once; /proc may duplicate — take max with unique ports in cmdline
+    UV_PORTS_IN_CMD="$(echo "$BUNDLE" | grep -oE "port [0-9]+" | sort -u | wc -l | tr -d " ")"
+    [[ "${UV_PORTS_IN_CMD:-0}" -gt "$UV_PROCS" ]] && UV_PROCS="$UV_PORTS_IN_CMD"
+  fi
+  PORTS_IN_CT=0
   for ((i=0; i<FW; i++)); do
     p=$((8000+i))
-    ss -lnt 2>/dev/null | grep -qE ":${p}\\b" && PORTS_OPEN=$((PORTS_OPEN+1)) || true
+    # /proc/net/tcp hex port (8000=1F40)
+    if docker exec "$API_CID" sh -c "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null" 2>/dev/null |        awk -v p="$p" 'BEGIN{ok=0} {
+         split($2,a,":"); if (length(a)<2) next;
+         hp=strtonum("0x" a[2]); if (hp==p && $4=="0A") ok=1
+       } END{exit ok?0:1}'; then
+      PORTS_IN_CT=$((PORTS_IN_CT+1))
+    fi
   done
-  log "  diagnostics: in_process_table=$UV_SEEN startup_log=$UV_START health=$HCODE ports_open=$PORTS_OPEN/$FW list_ok=$LIST_OK"
+  # Prefer process count when available
+  WORKERS_ALIVE="$UV_PROCS"
+  [[ "$PORTS_IN_CT" -gt "$WORKERS_ALIVE" ]] && WORKERS_ALIVE="$PORTS_IN_CT"
+  log "  diagnostics: in_process_table=$UV_SEEN startup_log=$UV_START health=$HCODE workers_seen=$WORKERS_ALIVE/$FW (proc=$UV_PROCS in_ct_ports=$PORTS_IN_CT) list_ok=$LIST_OK"
 
   if [[ "$UV_SEEN" == "yes" ]]; then
-    hit="$(echo "$BUNDLE" | grep -iE "uvicorn|api\\.app:app" | head -4 | tr "\\n" " ; " | cut -c1-200)"
+    hit="$(echo "$BUNDLE" | grep -iE "uvicorn|api\.app:app" | head -4 | tr "\n" " ; " | cut -c1-200)"
     ok "process uvicorn" "DEFINITELY RUNNING (seen in process table). $hit"
   elif [[ "$HCODE" == "200" ]]; then
-    why="RUNNING (proven by health=200, ports $PORTS_OPEN/$FW)"
+    why="RUNNING (proven by health=200, workers_seen=$WORKERS_ALIVE/$FW)"
     if [[ "$LIST_OK" == "no" ]]; then
       why="$why | Ursache: Prozessliste leer — KEIN toter uvicorn, nur nicht sichtbar"
     elif [[ "$UV_START" == "yes" ]]; then
@@ -381,15 +399,17 @@ ${PROC_CMDS}"
     fi
     ok "process uvicorn" "$why"
   else
-    bad "process uvicorn" "NOT RUNNING/BROKEN: no table match, health=$HCODE, ports=$PORTS_OPEN/$FW, startup=$UV_START"
+    bad "process uvicorn" "NOT RUNNING/BROKEN: no table match, health=$HCODE, workers=$WORKERS_ALIVE/$FW, startup=$UV_START"
   fi
   if [[ "$FW" -gt 1 ]]; then
-    if [[ "$PORTS_OPEN" -ge "$FW" ]]; then
-      ok "uvicorn workers" "all $FW worker ports listening (8000..$((8000+FW-1)))"
-    elif [[ "$PORTS_OPEN" -ge 1 ]]; then
-      warn "uvicorn workers" "only $PORTS_OPEN/$FW ports open — some workers may be down (nginx least_conn)"
+    if [[ "$WORKERS_ALIVE" -ge "$FW" ]]; then
+      ok "uvicorn workers" "all $FW workers present (in-container; host only publishes :8000)"
+    elif [[ "$WORKERS_ALIVE" -ge 1 ]]; then
+      warn "uvicorn workers" "only $WORKERS_ALIVE/$FW workers visible — some may be down"
+    elif [[ "$HCODE" == "200" ]]; then
+      warn "uvicorn workers" "could not count all $FW workers, but health=200 on :8000"
     else
-      bad "uvicorn workers" "0/$FW ports open"
+      bad "uvicorn workers" "0/$FW workers visible and health not 200"
     fi
   fi
 
