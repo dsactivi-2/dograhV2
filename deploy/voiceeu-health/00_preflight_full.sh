@@ -218,9 +218,10 @@ kv TURN_SECRET_SET "$TURN_SECRET_SET"
 kv FASTAPI_WORKERS "${FASTAPI_WORKERS:-1}"
 kv DEEPGRAM_BASE_URL_IN_ENV "$DEEPGRAM_ENV"
 kv OSS_JWT_SECRET_SET "$OSS_JWT_SET"
-# passwords only for health redis/pg from same host — store for health script use carefully
-kv REDIS_PASSWORD "${REDIS_PASSWORD:-redissecret}"
-kv POSTGRES_PASSWORD "${POSTGRES_PASSWORD:-postgres}"
+# Never write raw DB/Redis passwords into preflight reports (security).
+# Health script re-reads them from ENV_FILE at runtime when needed.
+kv REDIS_PASSWORD_SET "$([[ -n "$REDIS_PASSWORD" ]] && echo yes || echo no)"
+kv POSTGRES_PASSWORD_SET "$([[ -n "$POSTGRES_PASSWORD" ]] && echo yes || echo no)"
 
 # --- Health URL candidates ---
 echo; echo "=== Health URL probe ==="
