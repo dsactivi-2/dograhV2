@@ -289,6 +289,9 @@ class UserConfigurationValidator:
             )
 
     def _check_deepgram_api_key(self, model: str, api_key: str) -> bool:
+        # Management API is global (api.deepgram.com). The EU inference host does
+        # not expose /v1/projects — keep validation on US regardless of
+        # DEEPGRAM_BASE_URL used for STT/TTS at runtime.
         try:
             deepgram = DeepgramClient(api_key=api_key)
             deepgram.manage.v1.projects.list()

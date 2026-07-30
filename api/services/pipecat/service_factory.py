@@ -5,7 +5,7 @@ import aiohttp
 from fastapi import HTTPException
 from loguru import logger
 
-from api.constants import MPS_API_URL
+from api.constants import DEEPGRAM_BASE_URL, MPS_API_URL
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
     DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
@@ -188,6 +188,27 @@ def _validate_runtime_service_url(url: str, field_name: str) -> None:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+
+def _deepgram_inference_urls(base_url: str | None = None) -> tuple[str, str, str]:
+    """Resolve Deepgram regional inference URLs.
+
+    Returns:
+        (stt_base_url, flux_ws_url, tts_ws_base_url)
+
+    ``stt_base_url`` is a host (optionally with path) suitable for
+    ``DeepgramSTTService(base_url=...)`` which derives https/wss itself.
+    Flux and TTS need full WebSocket base URLs.
+    """
+    raw = (base_url or DEEPGRAM_BASE_URL).strip().rstrip("/")
+    host = raw
+    for prefix in ("wss://", "https://", "ws://", "http://"):
+        if host.startswith(prefix):
+            host = host[len(prefix) :]
+            break
+    host = host.rstrip("/")
+    return host, f"wss://{host}/v2/listen", f"wss://{host}"
+
+
 def create_stt_service(
     user_config,
     audio_config: "AudioConfig",
@@ -218,18 +239,22 @@ def create_stt_service(
                 if language_hint:
                     settings_kwargs["language_hints"] = [language_hint]
 
+            _stt_base, flux_url, _tts_base = _deepgram_inference_urls()
             return DeepgramFluxSTTService(
                 api_key=user_config.stt.api_key,
+                url=flux_url,
                 settings=DeepgramFluxSTTSettings(**settings_kwargs),
                 should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
                 sample_rate=audio_config.transport_in_sample_rate,
             )
 
-        # Other models than flux
+        # Other models than flux (e.g. nova-3-general) — EU regional inference by default
         # Use language from user config, defaulting to "multi" for multilingual support
         language = getattr(user_config.stt, "language", None) or "multi"
+        stt_base_url, _flux_url, _tts_base = _deepgram_inference_urls()
         return DeepgramSTTService(
             api_key=user_config.stt.api_key,
+            base_url=stt_base_url,
             settings=DeepgramSTTSettings(
                 language=language,
                 profanity_filter=False,
@@ -505,8 +530,10 @@ def create_tts_service(
     # Create function call filter to prevent TTS from speaking function call tags
     xml_function_tag_filter = XMLFunctionTagFilter()
     if user_config.tts.provider == ServiceProviders.DEEPGRAM.value:
+        _stt_base, _flux_url, tts_base_url = _deepgram_inference_urls()
         return DeepgramTTSService(
             api_key=user_config.tts.api_key,
+            base_url=tts_base_url,
             settings=DeepgramTTSSettings(voice=user_config.tts.voice),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],

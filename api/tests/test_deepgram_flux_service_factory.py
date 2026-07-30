@@ -68,3 +68,76 @@ def test_create_deepgram_flux_multi_omits_auto_detect_language_hint():
     kwargs = mock_service.call_args.kwargs
     assert kwargs["settings"].model == "flux-general-multi"
     assert kwargs["settings"].language_hints is NOT_GIVEN
+
+
+def test_deepgram_flux_uses_eu_inference_url():
+    user_config = SimpleNamespace(
+        stt=SimpleNamespace(
+            provider=ServiceProviders.DEEPGRAM.value,
+            api_key="test-key",
+            model="flux-general-en",
+            language="en",
+        )
+    )
+    audio_config = AudioConfig(
+        transport_in_sample_rate=16000,
+        transport_out_sample_rate=16000,
+    )
+
+    with patch(
+        "api.services.pipecat.service_factory.DeepgramFluxSTTService"
+    ) as mock_service:
+        create_stt_service(user_config, audio_config)
+
+    kwargs = mock_service.call_args.kwargs
+    assert kwargs["url"] == "wss://api.eu.deepgram.com/v2/listen"
+
+
+def test_deepgram_nova_uses_eu_base_url():
+    user_config = SimpleNamespace(
+        stt=SimpleNamespace(
+            provider=ServiceProviders.DEEPGRAM.value,
+            api_key="test-key",
+            model="nova-3-general",
+            language="bs",
+        )
+    )
+    audio_config = AudioConfig(
+        transport_in_sample_rate=16000,
+        transport_out_sample_rate=16000,
+    )
+
+    with patch(
+        "api.services.pipecat.service_factory.DeepgramSTTService"
+    ) as mock_service:
+        create_stt_service(user_config, audio_config)
+
+    kwargs = mock_service.call_args.kwargs
+    assert kwargs["base_url"] == "api.eu.deepgram.com"
+    assert kwargs["settings"].model == "nova-3-general"
+    assert kwargs["settings"].language == "bs"
+
+
+def test_deepgram_tts_uses_eu_ws_base_url():
+    from api.services.pipecat.service_factory import create_tts_service
+
+    user_config = SimpleNamespace(
+        tts=SimpleNamespace(
+            provider=ServiceProviders.DEEPGRAM.value,
+            api_key="test-key",
+            voice="aura-asteria-en",
+            model=None,
+        )
+    )
+    audio_config = AudioConfig(
+        transport_in_sample_rate=16000,
+        transport_out_sample_rate=16000,
+    )
+
+    with patch(
+        "api.services.pipecat.service_factory.DeepgramTTSService"
+    ) as mock_service:
+        create_tts_service(user_config, audio_config)
+
+    kwargs = mock_service.call_args.kwargs
+    assert kwargs["base_url"] == "wss://api.eu.deepgram.com"

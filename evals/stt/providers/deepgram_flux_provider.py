@@ -37,7 +37,7 @@ class DeepgramFluxProvider(STTProvider):
     API Docs: https://developers.deepgram.com/docs/
     """
 
-    WS_URL = "wss://api.deepgram.com/v2/listen"
+    WS_URL = "wss://api.eu.deepgram.com/v2/listen"
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("DEEPGRAM_API_KEY")

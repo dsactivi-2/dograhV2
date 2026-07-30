@@ -32,7 +32,7 @@ class DeepgramProvider(STTProvider):
     For Flux models, use DeepgramFluxProvider instead.
     """
 
-    WS_URL = "wss://api.deepgram.com/v1/listen"
+    WS_URL = "wss://api.eu.deepgram.com/v1/listen"
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("DEEPGRAM_API_KEY")
