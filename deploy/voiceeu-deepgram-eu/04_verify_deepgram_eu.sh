@@ -31,9 +31,8 @@ ok()   { PASS=$((PASS+1)); RESULTS+=("PASS|$1|$2"); log "  ✅ PASS  $1 — $2";
 bad()  { FAIL=$((FAIL+1)); RESULTS+=("FAIL|$1|$2"); log "  ❌ FAIL  $1 — $2"; }
 skip() { SKIP=$((SKIP+1)); RESULTS+=("SKIP|$1|$2"); log "  ⏭  SKIP  $1 — $2"; }
 
-# --- load preflight ----------------------------------------------------------
+# --- load preflight (safe parser — never source multi-word unquoted values) ---
 load_preflight_env() {
-  # Safe parse of KEY=value / KEY="value" (never eval/source untrusted shell).
   local file="$1" line key val
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
@@ -41,10 +40,9 @@ load_preflight_env() {
     key="${line%%=*}"
     val="${line#*=}"
     [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-    if [[ "${val:0:1}" == '"' && "${val: -1}" == '"' && ${#val} -ge 2 ]]; then
+    # strip surrounding double quotes written by preflight kv()
+    if [[ ${#val} -ge 2 && "${val:0:1}" == '"' && "${val: -1}" == '"' ]]; then
       val="${val:1:${#val}-2}"
-      val="${val//\\/\\}"
-      val="${val//\"/"}"
     fi
     printf -v "$key" '%s' "$val"
     export "$key"
@@ -55,7 +53,7 @@ if [[ -f "$PREFLIGHT_ENV" ]]; then
   log "Loading preflight: $PREFLIGHT_ENV"
   load_preflight_env "$PREFLIGHT_ENV"
 else
-  log "WARN: no $PREFLIGHT_ENV — attempting inline discovery (run 00_preflight_discover.sh for full report)"
+  log "WARN: no preflight-report.env — attempting inline discovery"
 fi
 
 # defaults only if still empty after preflight (no fake hosts — discover)
