@@ -32,13 +32,28 @@ bad()  { FAIL=$((FAIL+1)); RESULTS+=("FAIL|$1|$2"); log "  ❌ FAIL  $1 — $2";
 skip() { SKIP=$((SKIP+1)); RESULTS+=("SKIP|$1|$2"); log "  ⏭  SKIP  $1 — $2"; }
 
 # --- load preflight ----------------------------------------------------------
+load_preflight_env() {
+  # Safe parse of KEY=value / KEY="value" (never eval/source untrusted shell).
+  local file="$1" line key val
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    val="${line#*=}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    if [[ "${val:0:1}" == '"' && "${val: -1}" == '"' && ${#val} -ge 2 ]]; then
+      val="${val:1:${#val}-2}"
+      val="${val//\\/\\}"
+      val="${val//\"/"}"
+    fi
+    printf -v "$key" '%s' "$val"
+    export "$key"
+  done < "$file"
+}
+
 if [[ -f "$PREFLIGHT_ENV" ]]; then
   log "Loading preflight: $PREFLIGHT_ENV"
-  # shellcheck disable=SC1090
-  set -a
-  # shellcheck disable=SC1091
-  source "$PREFLIGHT_ENV"
-  set +a
+  load_preflight_env "$PREFLIGHT_ENV"
 else
   log "WARN: no $PREFLIGHT_ENV — attempting inline discovery (run 00_preflight_discover.sh for full report)"
 fi
