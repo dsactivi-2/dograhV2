@@ -271,7 +271,12 @@ else
   bad "postgres" "no container"
 fi
 if [[ -n "${REDIS_CONTAINER_ID:-}" ]]; then
-  RP="${REDIS_PASSWORD:-redissecret}"
+  # Read password from host .env at runtime — never rely on preflight dumping secrets.
+  RP="redissecret"
+  if [[ -n "${ENV_FILE:-}" && -f "${ENV_FILE}" ]]; then
+    RP="$(grep -E '^REDIS_PASSWORD=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | sed 's/^["'\'']//;s/["'\'']$//' || true)"
+    [[ -n "$RP" ]] || RP="redissecret"
+  fi
   pong="$(docker exec "$REDIS_CONTAINER_ID" redis-cli -a "$RP" ping 2>/dev/null | tr -d '\r' || true)"
   if [[ "$pong" == "PONG" ]]; then
     ok "redis PING" "PONG"
@@ -297,9 +302,22 @@ fi
 log
 log "=== 6) API multi-process (uvicorn / arq / orchestrator / ari) ==="
 if [[ -n "$API_CID" ]]; then
-  PS="$(docker exec "$API_CID" ps aux 2>/dev/null || docker exec "$API_CID" ps 2>/dev/null || true)"
-  echo "$PS" | head -20
-  echo "$PS" | grep -qi uvicorn && ok "process uvicorn" "found" || bad "process uvicorn" "not found in ps"
+  # Slim API image has no `ps`. Prefer host-side docker top, then /proc cmdline.
+  PS="$(docker top "$API_CID" -eo pid,cmd 2>/dev/null || true)"
+  if [[ -z "$PS" ]]; then
+    PS="$(docker exec "$API_CID" sh -c 'for f in /proc/[0-9]*/cmdline; do tr "\0" " " <"$f" 2>/dev/null; echo; done' 2>/dev/null || true)"
+  fi
+  echo "$PS" | head -25
+  if echo "$PS" | grep -qi uvicorn; then
+    uvc="$(echo "$PS" | grep -ci uvicorn || true)"
+    ok "process uvicorn" "found (lines≈$uvc; FASTAPI_WORKERS=${FASTAPI_WORKERS:-?})"
+  else
+    if curl -sk -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8000/api/v1/health 2>/dev/null | grep -q 200; then
+      warn "process uvicorn" "not listed via docker top//proc but :8000 health=200"
+    else
+      bad "process uvicorn" "not found and API health not 200"
+    fi
+  fi
   echo "$PS" | grep -qiE 'arq|WorkerSettings' && ok "process arq" "found" || warn "process arq" "not found (background jobs may be down)"
   echo "$PS" | grep -qi campaign_orchestrator && ok "process campaign_orchestrator" "found" || warn "process campaign_orchestrator" "not found"
   echo "$PS" | grep -qi ari_manager && ok "process ari_manager" "found" || warn "process ari_manager" "not found (ok if no Asterisk telephony)"
