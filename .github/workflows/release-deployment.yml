@@ -49,7 +49,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       
       - name: Comment on Release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const deployment_url = '${{ steps.deploy.outputs.deployment_url }}';
