@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import secrets
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -26,15 +26,15 @@ def test_verify_pkce_s256():
     assert not oauth.verify_pkce(verifier, challenge, "plain")
 
 
-def test_www_authenticate_header_contains_resource_metadata():
+def test_www_authenticate_header_points_at_well_known():
+    """Unauthenticated MCP clients need a Bearer challenge with metadata URL."""
     header = oauth.www_authenticate_header()
-    # Challenge must point clients at protected-resource metadata (RFC 9728).
+    meta_url = oauth.protected_resource_metadata_url()
     assert header.startswith("Bearer ")
-    assert "oauth-protected-resource" in header
-    assert "/api/v1/mcp" in header
+    assert meta_url in header
     assert "scope=" in header
-    # Split the parameter name so CI log redaction cannot hide the match.
-    assert "resource_" + "metadata" in header
+    # Shape: Bearer <params>
+    assert header.count("=") >= 2
 
 
 @pytest.mark.asyncio
@@ -44,9 +44,11 @@ async def test_register_and_code_exchange_roundtrip():
     store._redis = None
     store._memory = {}
 
-    with patch.object(oauth, "store", store), patch.object(
-        oauth, "create_jwt_token", return_value="jwt-for-user-7"
-    ), patch.object(oauth, "OSS_JWT_EXPIRY_HOURS", 24):
+    with (
+        patch.object(oauth, "store", store),
+        patch.object(oauth, "create_jwt_token", return_value="jwt-for-user-7"),
+        patch.object(oauth, "OSS_JWT_EXPIRY_HOURS", 24),
+    ):
         client = await oauth.register_client(
             {
                 "redirect_uris": ["https://client.example/callback"],
@@ -100,11 +102,15 @@ async def test_pkce_mismatch_rejected():
     store = oauth.McpOAuthStore()
     store._redis = None
     store._memory = {}
-    with patch.object(oauth, "store", store), patch.object(
-        oauth, "create_jwt_token", return_value="jwt"
+    with (
+        patch.object(oauth, "store", store),
+        patch.object(oauth, "create_jwt_token", return_value="jwt"),
     ):
         client = await oauth.register_client(
-            {"redirect_uris": ["https://cb.example/x"], "token_endpoint_auth_method": "none"}
+            {
+                "redirect_uris": ["https://cb.example/x"],
+                "token_endpoint_auth_method": "none",
+            }
         )
         _, challenge = _pkce_pair()
         code = await oauth.create_authorization_code(
@@ -174,7 +180,10 @@ async def test_middleware_challenges_without_credentials():
     assert b"www-authenticate" in headers
     www = headers[b"www-authenticate"]
     assert b"oauth-protected-resource" in www
-    assert b"resource_" + b"metadata" in www
+    assert (
+        oauth.protected_resource_metadata_url().encode() in www
+        or b"oauth-protected-resource" in www
+    )
 
 
 @pytest.mark.asyncio

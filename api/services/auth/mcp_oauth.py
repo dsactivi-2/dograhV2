@@ -194,7 +194,9 @@ class McpOAuthStore:
     # -- clients -------------------------------------------------------------
 
     async def save_client(self, client: OAuthClient) -> None:
-        await self._set(f"client:{client.client_id}", asdict(client), CLIENT_TTL_SECONDS)
+        await self._set(
+            f"client:{client.client_id}", asdict(client), CLIENT_TTL_SECONDS
+        )
 
     async def get_client(self, client_id: str) -> OAuthClient | None:
         data = await self._get(f"client:{client_id}")
@@ -349,7 +351,9 @@ async def exchange_authorization_code(
         raise ValueError("invalid_grant")
     if record.redirect_uri != redirect_uri:
         raise ValueError("invalid_grant")
-    if not verify_pkce(code_verifier, record.code_challenge, record.code_challenge_method):
+    if not verify_pkce(
+        code_verifier, record.code_challenge, record.code_challenge_method
+    ):
         raise ValueError("invalid_grant")
 
     access_token = create_jwt_token(record.user_id, record.email)

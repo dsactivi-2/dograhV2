@@ -198,11 +198,16 @@ def _render_login_page(
 ) -> str:
     title = "Connect to Dograh"
     app_name = html.escape(client_name or "MCP client")
-    err_html = (
-        f'<div class="err">{html.escape(error)}</div>' if error else ""
-    )
+    err_html = f'<div class="err">{html.escape(error)}</div>' if error else ""
     scopes = html.escape(scope or "mcp")
     base = html.escape(public_base_url())
+    # Pre-escape form fields so the HTML f-string can use double quotes only.
+    esc_client_id = html.escape(client_id)
+    esc_redirect_uri = html.escape(redirect_uri)
+    esc_state = html.escape(state or "")
+    esc_scope = html.escape(scope)
+    esc_challenge = html.escape(code_challenge)
+    esc_method = html.escape(code_challenge_method)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -265,12 +270,12 @@ def _render_login_page(
     <p class="sub"><strong>{app_name}</strong> wants to access your Dograh workspace via MCP.</p>
     {err_html}
     <form method="post" action="{html.escape(OAUTH_PATH)}/authorize">
-      <input type="hidden" name="client_id" value="{html.escape(client_id)}"/>
-      <input type="hidden" name="redirect_uri" value="{html.escape(redirect_uri)}"/>
-      <input type="hidden" name="state" value="{html.escape(state or '')}"/>
-      <input type="hidden" name="scope" value="{html.escape(scope)}"/>
-      <input type="hidden" name="code_challenge" value="{html.escape(code_challenge)}"/>
-      <input type="hidden" name="code_challenge_method" value="{html.escape(code_challenge_method)}"/>
+      <input type="hidden" name="client_id" value="{esc_client_id}"/>
+      <input type="hidden" name="redirect_uri" value="{esc_redirect_uri}"/>
+      <input type="hidden" name="state" value="{esc_state}"/>
+      <input type="hidden" name="scope" value="{esc_scope}"/>
+      <input type="hidden" name="code_challenge" value="{esc_challenge}"/>
+      <input type="hidden" name="code_challenge_method" value="{esc_method}"/>
       <input type="hidden" name="response_type" value="code"/>
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="username" required autofocus/>
@@ -305,7 +310,9 @@ async def authorize_get(
             detail="Browser OAuth is only available when AUTH_PROVIDER=local",
         )
     if response_type != "code":
-        raise HTTPException(status_code=400, detail="Only response_type=code is supported")
+        raise HTTPException(
+            status_code=400, detail="Only response_type=code is supported"
+        )
     if not code_challenge:
         raise HTTPException(status_code=400, detail="code_challenge (PKCE) is required")
     if code_challenge_method.upper() != "S256":
@@ -329,7 +336,9 @@ async def authorize_get(
             status_code=400,
         )
     if not is_redirect_uri_allowed(client, redirect_uri):
-        raise HTTPException(status_code=400, detail="redirect_uri not registered for this client")
+        raise HTTPException(
+            status_code=400, detail="redirect_uri not registered for this client"
+        )
 
     return HTMLResponse(
         _render_login_page(
@@ -359,7 +368,9 @@ async def authorize_post(
     if not oauth_enabled():
         raise HTTPException(status_code=404, detail="OAuth not enabled")
     if response_type != "code":
-        raise HTTPException(status_code=400, detail="Only response_type=code is supported")
+        raise HTTPException(
+            status_code=400, detail="Only response_type=code is supported"
+        )
 
     client = await store.get_client(client_id)
     if client is None:
@@ -377,10 +388,16 @@ async def authorize_post(
             status_code=400,
         )
     if not is_redirect_uri_allowed(client, redirect_uri):
-        raise HTTPException(status_code=400, detail="redirect_uri not registered for this client")
+        raise HTTPException(
+            status_code=400, detail="redirect_uri not registered for this client"
+        )
 
     user = await db_client.get_user_by_email(email)
-    if not user or not user.password_hash or not verify_password(password, user.password_hash):
+    if (
+        not user
+        or not user.password_hash
+        or not verify_password(password, user.password_hash)
+    ):
         return HTMLResponse(
             _render_login_page(
                 client_id=client_id,
@@ -438,7 +455,9 @@ async def _authenticate_client(request: Request, form: dict[str, str]) -> Any:
 
     if client.token_endpoint_auth_method != "none":
         if not client_secret or client_secret != client.client_secret:
-            return None, _oauth_error("invalid_client", "Invalid client credentials", 401)
+            return None, _oauth_error(
+                "invalid_client", "Invalid client credentials", 401
+            )
 
     return client, None
 
@@ -458,7 +477,9 @@ async def token_endpoint(request: Request) -> JSONResponse:
         try:
             body = await request.json()
             if isinstance(body, dict):
-                form = {str(k): str(v) if v is not None else "" for k, v in body.items()}
+                form = {
+                    str(k): str(v) if v is not None else "" for k, v in body.items()
+                }
         except Exception:
             return _oauth_error("invalid_request", "Invalid JSON body")
     else:
@@ -501,7 +522,9 @@ async def token_endpoint(request: Request) -> JSONResponse:
                 client=client, refresh_token=refresh, scopes=scopes
             )
             return _cors_json(token)
-        return _oauth_error("unsupported_grant_type", f"Unsupported grant_type: {grant_type}")
+        return _oauth_error(
+            "unsupported_grant_type", f"Unsupported grant_type: {grant_type}"
+        )
     except ValueError as exc:
         msg = str(exc)
         if msg == "invalid_scope":
