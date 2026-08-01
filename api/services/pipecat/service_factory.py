@@ -44,6 +44,7 @@ from pipecat.services.elevenlabs.stt import (
     ElevenLabsRealtimeSTTSettings,
 )
 from pipecat.services.elevenlabs.tts import ElevenLabsTTSService, ElevenLabsTTSSettings
+from pipecat.services.fish.tts import FishAudioTTSService, FishAudioTTSSettings
 from pipecat.services.gladia.stt import GladiaSTTService, GladiaSTTSettings
 from pipecat.services.google.llm import GoogleLLMService, GoogleLLMSettings
 from pipecat.services.google.stt import GoogleSTTService, GoogleSTTSettings
@@ -875,6 +876,49 @@ def create_tts_service(
                 language=pipecat_language,
                 model=model,
             ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.FISH_AUDIO.value:
+        voice = getattr(user_config.tts, "voice", None)
+        if not voice:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Fish Audio TTS requires a voice (reference_id). "
+                    "Configure it in your TTS settings."
+                ),
+            )
+        model = getattr(user_config.tts, "model", None) or "s2-pro"
+        language_code = getattr(user_config.tts, "language", None) or "en"
+        latency = getattr(user_config.tts, "latency", None) or "balanced"
+        if latency not in ("balanced", "normal"):
+            latency = "balanced"
+        speed = getattr(user_config.tts, "speed", None)
+        volume = getattr(user_config.tts, "volume", None)
+        normalize = getattr(user_config.tts, "normalize", True)
+        try:
+            pipecat_language = Language(language_code)
+        except ValueError:
+            pipecat_language = language_code
+        settings_kwargs: dict = {
+            "model": model,
+            "voice": voice,
+            "language": pipecat_language,
+            "latency": latency,
+            "normalize": normalize if normalize is not None else True,
+        }
+        if speed is not None:
+            settings_kwargs["prosody_speed"] = speed
+        if volume is not None:
+            settings_kwargs["prosody_volume"] = volume
+        return FishAudioTTSService(
+            api_key=user_config.tts.api_key,
+            sample_rate=audio_config.transport_out_sample_rate,
+            # PCM matches telephony / WebRTC pipeline sample rates directly.
+            output_format="pcm",
+            settings=FishAudioTTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,

@@ -96,6 +96,7 @@ class ServiceProviders(str, Enum):
     SMALLEST = "smallest"
     XAI = "xai"
     LMNT = "lmnt"
+    FISH_AUDIO = "fish_audio"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -128,6 +129,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
         ServiceProviders.LMNT,
+        ServiceProviders.FISH_AUDIO,
     ]
     api_key: str | list[str]
 
@@ -264,6 +266,14 @@ ELEVENLABS_PROVIDER_MODEL_CONFIG = provider_model_config("ElevenLabs")
 CARTESIA_PROVIDER_MODEL_CONFIG = provider_model_config("Cartesia")
 XAI_PROVIDER_MODEL_CONFIG = provider_model_config("xAI")
 LMNT_PROVIDER_MODEL_CONFIG = provider_model_config("LMNT")
+FISH_AUDIO_PROVIDER_MODEL_CONFIG = provider_model_config(
+    "Fish Audio",
+    description=(
+        "Fish Audio streaming TTS with expressive voices, open-domain emotion tags, "
+        "and multilingual synthesis (including Bosnian/Croatian/Serbian)."
+    ),
+    provider_docs_url="https://docs.fish.audio/",
+)
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inworld",
     description=(
@@ -1378,6 +1388,83 @@ class LmntTTSConfiguration(BaseTTSConfiguration):
     )
 
 
+FISH_AUDIO_TTS_MODELS = ["s2-pro", "s2.1-pro", "s2.1-pro-free", "s1"]
+FISH_AUDIO_LATENCY_MODES = ["balanced", "normal"]
+FISH_AUDIO_TTS_LANGUAGES = [
+    "en",
+    "de",
+    "bs",
+    "hr",
+    "sr",
+    "fr",
+    "es",
+    "ja",
+    "zh",
+    "ko",
+    "ar",
+    "ru",
+]
+
+
+@register_tts
+class FishAudioTTSConfiguration(BaseTTSConfiguration):
+    model_config = FISH_AUDIO_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.FISH_AUDIO] = ServiceProviders.FISH_AUDIO
+    model: str = Field(
+        default="s2-pro",
+        description=(
+            "Fish Audio TTS model. s2-pro / s2.1-pro are production models; "
+            "s2.1-pro-free is free under fair use for prototyping."
+        ),
+        json_schema_extra={
+            "examples": FISH_AUDIO_TTS_MODELS,
+            "allow_custom_input": True,
+        },
+    )
+    voice: str = Field(
+        description=(
+            "Fish Audio voice / reference ID from your Fish Audio library "
+            "(opaque ID from the dashboard or search_voices API)."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    language: str = Field(
+        default="en",
+        description=(
+            "Language hint for synthesis (ISO 639-1). Auto-detection works for "
+            "most languages including Bosnian (bs), Croatian (hr), Serbian (sr)."
+        ),
+        json_schema_extra={
+            "examples": FISH_AUDIO_TTS_LANGUAGES,
+            "allow_custom_input": True,
+        },
+    )
+    latency: str = Field(
+        default="balanced",
+        description=(
+            "Latency mode for streaming synthesis. 'balanced' is more stable "
+            "(recommended for telephony); 'normal' prioritizes lower latency."
+        ),
+        json_schema_extra={"examples": FISH_AUDIO_LATENCY_MODES},
+    )
+    speed: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=2.0,
+        description="Prosody speed multiplier (0.5 to 2.0).",
+    )
+    volume: int = Field(
+        default=0,
+        ge=-20,
+        le=20,
+        description="Prosody volume adjustment in dB (-20 to 20).",
+    )
+    normalize: bool = Field(
+        default=True,
+        description="Whether Fish Audio should normalize output audio levels.",
+    )
+
+
 TTSConfig = Annotated[
     Union[
         DeepgramTTSConfiguration,
@@ -1396,6 +1483,7 @@ TTSConfig = Annotated[
         SmallestAITTSConfiguration,
         XAITTSConfiguration,
         LmntTTSConfiguration,
+        FishAudioTTSConfiguration,
     ],
     Field(discriminator="provider"),
 ]

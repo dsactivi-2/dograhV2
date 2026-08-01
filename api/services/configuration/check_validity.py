@@ -66,6 +66,7 @@ class UserConfigurationValidator:
             ServiceProviders.SMALLEST.value: self._check_smallest_api_key,
             ServiceProviders.XAI.value: self._check_xai_api_key,
             ServiceProviders.LMNT.value: self._check_lmnt_api_key,
+            ServiceProviders.FISH_AUDIO.value: self._check_fish_audio_api_key,
         }
 
     async def validate(
@@ -427,6 +428,28 @@ class UserConfigurationValidator:
                 "Invalid LMNT API key. The key was rejected by the LMNT API. "
                 "Please check that your API key is correct and active. "
                 "You can find your key at https://app.lmnt.com."
+            )
+        return True
+
+    def _check_fish_audio_api_key(self, model: str, api_key: str) -> bool:
+        # Best-effort smoke test against Fish Audio's model list. Only a clear
+        # auth failure rejects the save; other statuses stay inconclusive.
+        try:
+            response = httpx.get(
+                "https://api.fish.audio/model",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10.0,
+            )
+        except httpx.RequestError:
+            raise ValueError(
+                "Could not connect to the Fish Audio API. Please check your "
+                "network connection and try again."
+            )
+        if response.status_code in (401, 403):
+            raise ValueError(
+                "Invalid Fish Audio API key. The key was rejected by the Fish "
+                "Audio API. Please check that your API key is correct and "
+                "active. You can find your keys at https://fish.audio/app/api-keys/."
             )
         return True
 
