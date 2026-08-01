@@ -1,0 +1,61 @@
+# Mirror dograh-hq/dograh main → branch upstream/original on this fork.
+# Never touches main. Force-updates the mirror branch only.
+name: Sync upstream/original
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  # Optional: also when this workflow file changes (no-op for schedule)
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-upstream-original.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-original
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fork (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "dograhV2-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch dograh-hq/dograh main
+        run: |
+          git remote add upstream https://github.com/dograh-hq/dograh.git
+          git fetch --no-tags upstream main
+          echo "upstream main: $(git rev-parse upstream/main)"
+
+      - name: Push mirror to upstream/original
+        run: |
+          # Mirror only — does not merge into main
+          git push origin "upstream/main:refs/heads/upstream/original" --force
+          echo "Mirrored to origin/upstream/original"
+
+      - name: Summary
+        run: |
+          {
+            echo "## upstream/original synced"
+            echo ""
+            echo "- Source: \`dograh-hq/dograh@main\`"
+            echo "- Target: \`dsactivi-2/dograhV2@upstream/original\`"
+            echo "- SHA: \`$(git rev-parse upstream/main)\`"
+            echo ""
+            echo "This branch is a read-only mirror. Integration into main happens only via PR."
+          } >> "$GITHUB_STEP_SUMMARY"
