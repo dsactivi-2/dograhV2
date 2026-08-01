@@ -140,13 +140,27 @@ jobs:
           )"
           fi
 
-          EXISTING=$(gh pr list --base main --head "$HEAD_REF" --json number --jq '.[0].number // empty')
-          if [ -n "$EXISTING" ]; then
+          EXISTING=$(gh pr list --base main --head "$HEAD_REF" --json number --jq '.[0].number // empty' || true)
+          if [ -n "${EXISTING:-}" ]; then
             echo "PR #$EXISTING already open — updating body"
             gh pr edit "$EXISTING" --title "$TITLE" --body "$BODY" || true
-          else
-            gh pr create --base main --head "$HEAD_REF" --title "$TITLE" --body "$BODY"
+            exit 0
           fi
+          # Prefer REST (same token). Repo must allow:
+          # Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"
+          set +e
+          OUT=$(gh api -X POST repos/${{ github.repository }}/pulls             -f title="$TITLE" -f head="$HEAD_REF" -f base=main -f body="$BODY" 2>&1)
+          CODE=$?
+          set -e
+          if [ $CODE -eq 0 ]; then
+            echo "$OUT" | jq -r .html_url
+            exit 0
+          fi
+          echo "$OUT"
+          if echo "$OUT" | grep -qi 'not permitted to create'; then
+            echo "::error::Enable: Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests"
+          fi
+          exit 1
 
       - name: Comment when not mergeable
         if: steps.delta.outputs.skip != 'true' && steps.merge.outputs.mergeable == 'false'
