@@ -1,0 +1,162 @@
+# When feature branches or upstream/original move, try a clean integration
+# onto a sync/* or auto/* branch and open a PR into main if merge is clean.
+# Never merges into main — human merge only.
+name: Auto PR to main
+
+on:
+  push:
+    branches:
+      - "feat/**"
+      - "fix/**"
+      - "chore/**"
+      - "upstream/original"
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: "Branch to propose into main (empty = detect)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-pr-to-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Do not open PRs from main itself
+    if: github.ref_name != 'main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "dograhV2-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve source branch
+        id: src
+        run: |
+          if [ -n "${{ github.event.inputs.source_branch }}" ]; then
+            SRC="${{ github.event.inputs.source_branch }}"
+          else
+            SRC="${{ github.ref_name }}"
+          fi
+          echo "branch=$SRC" >> "$GITHUB_OUTPUT"
+          git fetch origin main
+          git fetch origin "$SRC" || git fetch origin "+refs/heads/$SRC:refs/remotes/origin/$SRC"
+          echo "Source=$SRC"
+          echo "main=$(git rev-parse origin/main)"
+          echo "head=$(git rev-parse "origin/$SRC" 2>/dev/null || git rev-parse "$SRC")"
+
+      - name: Skip if already merged / no delta
+        id: delta
+        run: |
+          SRC="${{ steps.src.outputs.branch }}"
+          # commits on source not in main
+          COUNT=$(git rev-list --count "origin/main..origin/$SRC" 2>/dev/null || echo 0)
+          echo "ahead=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "Source is $COUNT commit(s) ahead of main"
+          if [ "$COUNT" = "0" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge-tree dry-run into main
+        id: merge
+        if: steps.delta.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          SRC="${{ steps.src.outputs.branch }}"
+          if git merge-tree --write-tree origin/main "origin/$SRC" > /tmp/mt.out 2> /tmp/mt.err; then
+            echo "mergeable=true" >> "$GITHUB_OUTPUT"
+            echo "Clean merge into main"
+          else
+            echo "mergeable=false" >> "$GITHUB_OUTPUT"
+            echo "Conflicts — will comment if PR exists, no auto PR"
+            cat /tmp/mt.err || true
+          fi
+
+      - name: Open or update PR (only if mergeable)
+        if: steps.delta.outputs.skip != 'true' && steps.merge.outputs.mergeable == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SRC="${{ steps.src.outputs.branch }}"
+
+          if [ "$SRC" = "upstream/original" ]; then
+            # Integration branch: main + upstream/original
+            INT="sync/upstream-$(date -u +%Y%m%d)"
+            git checkout -B "$INT" origin/main
+            if ! git merge --no-edit --no-ff "origin/upstream/original"; then
+              echo "Unexpected conflict after merge-tree clean — abort"
+              git merge --abort || true
+              exit 1
+            fi
+            git push -u origin "$INT" --force
+            HEAD_REF="$INT"
+            TITLE="chore(sync): merge upstream/original into main"
+            BODY="$(cat <<BODY
+          ## Automated upstream integration PR
+
+          Source mirror: \`upstream/original\` (dograh-hq/dograh main)
+          Integration branch: \`$INT\`
+
+          ### Safety
+          - Merge-tree against \`main\` was clean
+          - **Human merge required** (main is protected)
+          - Review labels \`risk:*\` and CI before merge
+
+          ### After merge
+          Rebuild/redeploy API image on DograhEUV2 when ready.
+          BODY
+          )"
+          else
+            HEAD_REF="$SRC"
+            TITLE="${SRC}: propose merge into main"
+            BODY="$(cat <<BODY
+          ## Automated ready-for-main PR
+
+          Source branch: \`$SRC\`
+
+          ### Safety
+          - Merge-tree against \`main\` was clean
+          - **Human merge required**
+          - Wait for all required checks (API tests, PR safety, secret scan)
+
+          Do not force-merge if \`risk:pipecat\` / \`risk:dockerfile\` without a careful look.
+          BODY
+          )"
+          fi
+
+          EXISTING=$(gh pr list --base main --head "$HEAD_REF" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already open — updating body"
+            gh pr edit "$EXISTING" --title "$TITLE" --body "$BODY" || true
+          else
+            gh pr create --base main --head "$HEAD_REF" --title "$TITLE" --body "$BODY"
+          fi
+
+      - name: Comment when not mergeable
+        if: steps.delta.outputs.skip != 'true' && steps.merge.outputs.mergeable == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SRC="${{ steps.src.outputs.branch }}"
+          EXISTING=$(gh pr list --base main --head "$SRC" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh pr comment "$EXISTING" --body "⚠️ **Auto-check:** merge into \`main\` currently has **conflicts**. Rebase/merge \`main\` into \`$SRC\` and push again."
+          else
+            echo "No PR yet; source not merge-clean. Skipping PR creation."
+          fi

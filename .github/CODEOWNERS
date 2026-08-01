@@ -1,0 +1,10 @@
+# Default owner for main-bound changes (requires review when branch protection asks for code owners)
+*       @dsactivi-2
+
+# High-risk paths — always require explicit ownership
+/api/services/pipecat/service_factory.py    @dsactivi-2
+/api/services/configuration/registry.py     @dsactivi-2
+/api/Dockerfile                             @dsactivi-2
+/pipecat/                                   @dsactivi-2
+/.github/                                   @dsactivi-2
+/deploy/                                    @dsactivi-2

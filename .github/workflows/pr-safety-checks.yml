@@ -1,0 +1,149 @@
+# Required safety gates for every PR into main.
+name: PR safety checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-safety-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  merge-dry-run:
+    name: merge-dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main + PR head
+        run: |
+          git fetch origin main
+          git fetch origin "${{ github.head_ref }}"
+
+      - name: Test-merge into main (no commit)
+        id: merge
+        run: |
+          set -euo pipefail
+          git checkout -B __pr_head "origin/${{ github.head_ref }}"
+          git checkout -B __main origin/main
+          # merge-tree: conflict check without dirty working tree (git 2.38+)
+          if git merge-tree --write-tree origin/main "origin/${{ github.head_ref }}" > /tmp/merge-tree.out 2> /tmp/merge-tree.err; then
+            echo "mergeable=true" >> "$GITHUB_OUTPUT"
+            echo "Merge into main is clean (no conflicts)."
+            head -c 500 /tmp/merge-tree.out || true
+          else
+            echo "mergeable=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Merge into main has conflicts"
+            cat /tmp/merge-tree.err || true
+            # Fallback message via classic merge attempt for readable conflict list
+            git checkout -B __try origin/main
+            git merge --no-commit --no-ff "origin/${{ github.head_ref }}" || true
+            git diff --name-only --diff-filter=U || true
+            exit 1
+          fi
+
+  path-risk:
+    name: path-risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Label high-risk paths
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const names = files.map(f => f.filename);
+            const rules = [
+              { label: "risk:pipecat", re: /^pipecat\// },
+              { label: "risk:dockerfile", re: /(^|\/)Dockerfile/ },
+              { label: "risk:factory", re: /service_factory\.py$/ },
+              { label: "risk:registry", re: /configuration\/registry\.py$/ },
+              { label: "risk:workflows", re: /^\.github\/workflows\// },
+              { label: "risk:deploy", re: /^deploy\// },
+            ];
+            const managed = rules.map(r => r.label);
+            // ensure labels exist
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const have = new Set(existing.map(l => l.name));
+            for (const name of managed) {
+              if (!have.has(name)) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name,
+                  color: "B60205",
+                  description: "High-risk path touched — extra review",
+                }).catch(() => {});
+              }
+            }
+            const toAdd = [];
+            for (const { label, re } of rules) {
+              if (names.some(n => re.test(n))) toAdd.push(label);
+            }
+            const current = (pr.labels || []).map(l => l.name);
+            const remove = managed.filter(l => current.includes(l) && !toAdd.includes(l));
+            if (remove.length) {
+              for (const name of remove) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  name,
+                }).catch(() => {});
+              }
+            }
+            if (toAdd.length) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: toAdd,
+              });
+            }
+            core.summary
+              .addHeading("Path risk")
+              .addList(toAdd.length ? toAdd : ["(none)"])
+              .addHeading("Files")
+              .addCodeBlock(names.slice(0, 80).join("\n") || "(none)");
+            await core.summary.write();
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "true"
