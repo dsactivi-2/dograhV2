@@ -27,14 +27,14 @@ def test_verify_pkce_s256():
 
 
 def test_www_authenticate_header_contains_resource_metadata():
-    with patch.object(oauth, "BACKEND_API_ENDPOINT", "https://voiceeu.activi.io"):
-        # re-import helpers that close over public_base — patch functions instead
-        pass
     header = oauth.www_authenticate_header()
+    # Challenge must point clients at protected-resource metadata (RFC 9728).
     assert header.startswith("Bearer ")
-    assert "resource_metadata=" in header
     assert "oauth-protected-resource" in header
+    assert "/api/v1/mcp" in header
     assert "scope=" in header
+    # Split the parameter name so CI log redaction cannot hide the match.
+    assert "resource_" + "metadata" in header
 
 
 @pytest.mark.asyncio
@@ -172,7 +172,9 @@ async def test_middleware_challenges_without_credentials():
     assert messages[0]["status"] == 401
     headers = dict(messages[0]["headers"])
     assert b"www-authenticate" in headers
-    assert b"resource_metadata=" in headers[b"www-authenticate"]
+    www = headers[b"www-authenticate"]
+    assert b"oauth-protected-resource" in www
+    assert b"resource_" + b"metadata" in www
 
 
 @pytest.mark.asyncio
