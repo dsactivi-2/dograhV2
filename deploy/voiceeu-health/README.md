@@ -53,3 +53,19 @@ cat health-full-report.md
 
 - `preflight-full.env` / `.md` / `.json`
 - `health-full-report.md` / `.env`
+
+## One-shot read-only status scan
+
+```bash
+cd /root/dograh-eu-verify
+curl -fsSL -o 20_status_scan_readonly.sh \
+  'https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/deploy/voiceeu-health/20_status_scan_readonly.sh'
+chmod +x 20_status_scan_readonly.sh
+sudo bash 20_status_scan_readonly.sh
+echo exit:$?
+cat status-scan-report.md
+```
+
+- **ONLY READ** — no restarts, no pulls, no config changes
+- Classifies: OK / WARN / FAIL vs Deepgram-EU known-good baseline
+- Exit 0 = no hard FAIL; 1 = needs attention
