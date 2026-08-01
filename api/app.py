@@ -33,7 +33,10 @@ from loguru import logger
 
 from api.constants import REDIS_URL
 from api.mcp_server import mcp
+from api.mcp_server.oauth_middleware import MCPAuthChallengeMiddleware
 from api.routes.main import router as main_router
+from api.routes.mcp_oauth import router as mcp_oauth_router
+from api.routes.mcp_oauth import well_known_router as mcp_oauth_well_known_router
 from api.services.pipecat.tracing_config import (
     handle_langfuse_sync,
     load_all_org_langfuse_credentials,
@@ -122,6 +125,8 @@ app.add_middleware(
     allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
+    # MCP OAuth clients need to read the challenge header.
+    expose_headers=["WWW-Authenticate"],
 )
 
 
@@ -137,14 +142,26 @@ api_router = APIRouter()
 
 # include subrouters here
 api_router.include_router(main_router)
+api_router.include_router(mcp_oauth_router)
 
 # main router with api prefix
 app.include_router(api_router, prefix=API_PREFIX)
 
+# RFC 8414 / RFC 9728 discovery at host root so MCP clients can resolve
+# /.well-known/oauth-authorization-server/api/v1/oauth and
+# /.well-known/oauth-protected-resource/api/v1/mcp
+# (requires reverse-proxy to route /.well-known to the API — see hostinger compose).
+app.include_router(mcp_oauth_well_known_router)
+
 # Mount the MCP server — agents reach it at /api/v1/mcp over Streamable HTTP.
-# Auth accepts X-API-Key (long-lived API key), Authorization: Bearer dgr_...
-# (API key), or Authorization: Bearer <access_token> (Stack Auth / local JWT).
-# See api/mcp_server/auth.py and docs/integrations/mcp.mdx.
-# Mounted under /api/v1 so existing reverse-proxy rules (nginx etc.) route it
-# without any extra configuration.
-app.mount(f"{API_PREFIX}/mcp", mcp_app)
+# Auth:
+#   1. Browser OAuth (Authorization Code + PKCE) when AUTH_PROVIDER=local
+#   2. X-API-Key / Authorization: Bearer dgr_... (API key)
+#   3. Authorization: Bearer <access_token> (local JWT / Stack Auth)
+# Unauthenticated requests get HTTP 401 + WWW-Authenticate so connectors
+# (Grok, Cursor, Claude, Codex) start the OAuth redirect flow.
+# See api/mcp_server/auth.py, api/services/auth/mcp_oauth.py, docs/integrations/mcp.mdx.
+app.mount(
+    f"{API_PREFIX}/mcp",
+    MCPAuthChallengeMiddleware(mcp_app),
+)

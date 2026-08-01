@@ -54,12 +54,12 @@ export function MCPSection() {
       <div className="grid gap-2">
         <Label>MCP Endpoint</Label>
         <p className="text-xs text-muted-foreground">
-          Connect an MCP-compatible AI assistant to this URL over Streamable
-          HTTP. Authenticate with a short-lived access token (
-          <code className="text-[0.7rem]">Authorization: Bearer …</code>) or an
-          API key (
-          <code className="text-[0.7rem]">X-API-Key</code>
-          ).{" "}
+          Paste this URL into an MCP-compatible assistant (Grok, Claude, Cursor,
+          Codex). On self-hosted local auth the client opens a browser login
+          (OAuth + PKCE) so you can approve access without a permanent key. You
+          can also authenticate with{" "}
+          <code className="text-[0.7rem]">Authorization: Bearer …</code> or{" "}
+          <code className="text-[0.7rem]">X-API-Key</code>.{" "}
           <Link
             href="/api-keys"
             target="_blank"
