@@ -24,7 +24,7 @@ jobs:
           
       - name: Checkout repository
         if: steps.check.outputs.is_announcement == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare Slack Message
         if: steps.check.outputs.is_announcement == 'true'
