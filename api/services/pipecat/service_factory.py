@@ -189,7 +189,6 @@ def _validate_runtime_service_url(url: str, field_name: str) -> None:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-
 def _deepgram_inference_urls(base_url: str | None = None) -> tuple[str, str, str]:
     """Resolve Deepgram regional inference URLs.
 
