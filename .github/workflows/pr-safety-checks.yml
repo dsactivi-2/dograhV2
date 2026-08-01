@@ -101,6 +101,15 @@ jobs:
                 }).catch(() => {});
               }
             }
+            if (!have.has('safe-to-merge-pipecat')) {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'safe-to-merge-pipecat',
+                color: '0E8A16',
+                description: 'Human ACK: allow merge despite risk:pipecat',
+              }).catch(() => {});
+            }
             const toAdd = [];
             for (const { label, re } of rules) {
               if (names.some(n => re.test(n))) toAdd.push(label);
@@ -147,3 +156,33 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "true"
+
+  # Blocks merge when risk:pipecat is set unless human adds safe-to-merge-pipecat.
+  # sync/upstream-* PRs that touch pipecat must be explicitly acknowledged.
+  pipecat-merge-gate:
+    name: pipecat-merge-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce pipecat safety label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = new Set((pr.labels || []).map(l => l.name));
+            const risk = labels.has('risk:pipecat');
+            const ok = labels.has('safe-to-merge-pipecat');
+            const isSync = /^(sync\/upstream-|upstream\/original)/.test(pr.head.ref);
+            core.summary
+              .addHeading('Pipecat merge gate')
+              .addRaw(`risk:pipecat=${risk}, safe-to-merge-pipecat=${ok}, head=${pr.head.ref}, sync-ish=${isSync}`)
+              .write();
+            if (risk && !ok) {
+              core.setFailed(
+                'This PR touches pipecat (label risk:pipecat). ' +
+                'Add label **safe-to-merge-pipecat** after review to allow merge. ' +
+                'Especially required for sync/upstream-* integrations.'
+              );
+            } else {
+              core.info('Pipecat gate OK');
+            }

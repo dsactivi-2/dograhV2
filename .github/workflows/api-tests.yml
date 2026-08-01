@@ -3,19 +3,34 @@ name: API tests
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "api/**"
-      - "pipecat/**"
-      - "scripts/**"
-      - ".github/workflows/api-tests.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'api/**'
+              - 'pipecat/**'
+              - 'scripts/**'
+              - '.github/workflows/api-tests.yml'
+
   pytest:
-    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+    name: pytest
+    needs: changes
+    if: ${{ needs.changes.outputs.api == 'true' && !startsWith(github.head_ref, 'release-please--') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -101,3 +116,25 @@ jobs:
             {
               "text": "❌ Dograh API tests failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
             }
+
+  # Always reports context "api-tests" so branch protection never hits a skipped check.
+  api-tests:
+    name: api-tests
+    needs: [changes, pytest]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate
+        run: |
+          set -euo pipefail
+          echo "paths_api=${{ needs.changes.outputs.api }}"
+          echo "pytest=${{ needs.pytest.result }}"
+          if [ "${{ needs.changes.outputs.api }}" != "true" ]; then
+            echo "No API-related paths changed — success."
+            exit 0
+          fi
+          case "${{ needs.pytest.result }}" in
+            success) echo "pytest passed"; exit 0 ;;
+            *) echo "pytest failed, cancelled, or skipped unexpectedly"; exit 1 ;;
+          esac

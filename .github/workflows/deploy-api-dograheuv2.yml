@@ -1,0 +1,105 @@
+# Auto-redeploy API on DograhEUV2 after main merges that touch API/pipecat.
+# Disabled until repo variable DOGRAH_DEPLOY_ENABLED=true and SSH secrets exist.
+# Never wipes volumes; only rebuilds API image + recreates api service.
+name: Deploy API (DograhEUV2)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "pipecat/**"
+      - "api/Dockerfile"
+      - ".github/workflows/deploy-api-dograheuv2.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to deploy (default: main SHA of this run)"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-api-dograheuv2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Soft gate: set repository variable DOGRAH_DEPLOY_ENABLED=true to arm.
+    if: ${{ vars.DOGRAH_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Check secrets
+        env:
+          HOST: ${{ secrets.DOGRAH_DEPLOY_HOST }}
+          USER: ${{ secrets.DOGRAH_DEPLOY_USER }}
+          KEY: ${{ secrets.DOGRAH_DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$USER" ] || [ -z "$KEY" ]; then
+            echo "::error::Missing secrets DOGRAH_DEPLOY_HOST / DOGRAH_DEPLOY_USER / DOGRAH_DEPLOY_SSH_KEY"
+            exit 1
+          fi
+
+      - name: Deploy over SSH (build on server)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DOGRAH_DEPLOY_HOST }}
+          username: ${{ secrets.DOGRAH_DEPLOY_USER }}
+          key: ${{ secrets.DOGRAH_DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DOGRAH_DEPLOY_SSH_PORT }}
+          command_timeout: 40m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            SRC=/root/src/dograhV2
+            STACK=/root/dograh/dograh
+            REF='${{ github.event.inputs.ref }}'
+            if [ -z "$REF" ]; then REF='${{ github.sha }}'; fi
+
+            echo "==> Deploy ref $REF"
+            mkdir -p /root/src
+            if [ ! -d "$SRC/.git" ]; then
+              git clone --recurse-submodules https://github.com/dsactivi-2/dograhV2.git "$SRC"
+            fi
+            cd "$SRC"
+            git fetch origin
+            git checkout --force "$REF" || git checkout --force main
+            git submodule update --init --recursive
+            SHA=$(git rev-parse --short HEAD)
+            echo "Building $SHA"
+
+            # Keep previous image tag for emergency rollback
+            if docker image inspect dograhv2-api:dg-eu-fish >/dev/null 2>&1; then
+              docker tag dograhv2-api:dg-eu-fish dograhv2-api:previous || true
+            fi
+
+            export DOCKER_BUILDKIT=1
+            docker build -f api/Dockerfile \
+              -t "dograhv2-api:dg-eu-fish" \
+              -t "dograhv2-api:dg-eu-fish-$SHA" \
+              -t "dograhv2-api:dg-eu" \
+              .
+
+            cd "$STACK"
+            cp -a docker-compose.yaml "docker-compose.yaml.bak.auto-$(date -u +%Y%m%d-%H%M%S)"
+            sed -i -E 's|image:[[:space:]]*dograhv2-api:[^[:space:]]+|image: dograhv2-api:dg-eu-fish|g' docker-compose.yaml
+            docker compose up -d --no-deps --force-recreate api
+            sleep 15
+            docker exec dograh-api-1 python -c "from pipecat.services.fish.tts import FishAudioTTSService; import ormsgpack; print('fish OK', ormsgpack.__version__)"
+            curl -fsS -o /dev/null -w "health %{http_code}\n" https://voiceeu.activi.io/api/v1/health \
+              || curl -fsS -o /dev/null -w "health_local %{http_code}\n" http://127.0.0.1:8000/api/v1/health \
+              || true
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | head -20
+            echo "Deploy OK $SHA"
+
+  skipped-notice:
+    name: deploy-skipped
+    runs-on: ubuntu-latest
+    if: ${{ vars.DOGRAH_DEPLOY_ENABLED != 'true' }}
+    steps:
+      - run: |
+          echo "Deploy disarmed. Set repo variable DOGRAH_DEPLOY_ENABLED=true and SSH secrets to enable."
