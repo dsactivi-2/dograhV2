@@ -5,6 +5,7 @@ from pipecat.services.settings import NOT_GIVEN
 from pipecat.transcriptions.language import Language
 
 from api.services.configuration.registry import (
+    Deepgram2STTConfiguration,
     DeepgramSTTConfiguration,
     ServiceProviders,
 )
@@ -116,6 +117,27 @@ def test_deepgram_nova_uses_eu_base_url():
     assert kwargs["base_url"] == "api.eu.deepgram.com"
     assert kwargs["settings"].model == "nova-3-general"
     assert kwargs["settings"].language == "bs"
+
+
+def test_deepgram_2_enables_live_agent_formatting_without_changing_deepgram():
+    config = Deepgram2STTConfiguration(api_key="test-key", model="nova-3-general", language="bs")
+    user_config = SimpleNamespace(stt=config)
+    audio_config = AudioConfig(
+        transport_in_sample_rate=16000,
+        transport_out_sample_rate=16000,
+    )
+
+    with patch(
+        "api.services.pipecat.service_factory.DeepgramSTTService"
+    ) as mock_service:
+        create_stt_service(user_config, audio_config)
+
+    settings = mock_service.call_args.kwargs["settings"]
+    assert settings.model == "nova-3-general"
+    assert settings.language == "bs"
+    assert settings.smart_format is True
+    assert settings.interim_results is True
+    assert settings.punctuate is True
 
 
 def test_deepgram_tts_uses_eu_ws_base_url():

@@ -37,6 +37,7 @@ class UserConfigurationValidator:
         self._validator_map = {
             ServiceProviders.OPENAI.value: self._check_openai_api_key,
             ServiceProviders.DEEPGRAM.value: self._check_deepgram_api_key,
+            ServiceProviders.DEEPGRAM_2.value: self._check_deepgram_api_key,
             ServiceProviders.GROQ.value: self._check_groq_api_key,
             ServiceProviders.OPENROUTER.value: self._check_openrouter_api_key,
             ServiceProviders.INWORLD.value: self._check_inworld_api_key,
