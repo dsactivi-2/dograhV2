@@ -121,7 +121,9 @@ def test_deepgram_nova_uses_eu_base_url():
 
 
 def test_deepgram_2_enables_live_agent_formatting_without_changing_deepgram():
-    config = Deepgram2STTConfiguration(api_key="test-key", model="nova-3-general", language="bs")
+    config = Deepgram2STTConfiguration(
+        api_key="test-key", model="nova-3-general", language="bs"
+    )
     user_config = SimpleNamespace(stt=config)
     audio_config = AudioConfig(
         transport_in_sample_rate=16000,
@@ -174,7 +176,10 @@ def test_deepgram_3_applies_nova3_live_agent_defaults_without_changing_deepgram(
 def test_deepgram_3_schema_title_and_provider():
     schema = Deepgram3STTConfiguration.model_json_schema()
     assert schema["title"] == "Deepgram 3"
-    assert Deepgram3STTConfiguration.model_fields["provider"].default == ServiceProviders.DEEPGRAM_3
+    assert (
+        Deepgram3STTConfiguration.model_fields["provider"].default
+        == ServiceProviders.DEEPGRAM_3
+    )
 
 
 def test_original_deepgram_defaults_unchanged_when_deepgram_3_exists():
