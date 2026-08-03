@@ -36,7 +36,6 @@ class UserConfigurationValidator:
     def __init__(self):
         self._validator_map = {
             ServiceProviders.OPENAI.value: self._check_openai_api_key,
-            ServiceProviders.ATLASCLOUD.value: self._check_openai_api_key,
             ServiceProviders.DEEPGRAM.value: self._check_deepgram_api_key,
             ServiceProviders.DEEPGRAM_2.value: self._check_deepgram_api_key,
             ServiceProviders.DEEPGRAM_3.value: self._check_deepgram_api_key,
@@ -233,7 +232,6 @@ class UserConfigurationValidator:
 
         if provider in (
             ServiceProviders.OPENAI.value,
-            ServiceProviders.ATLASCLOUD.value,
             ServiceProviders.OPENAI_REALTIME.value,
         ):
             return validator(provider, api_key, service_config)
@@ -242,9 +240,6 @@ class UserConfigurationValidator:
     def _check_openai_api_key(
         self, model: str, api_key: str, service_config: Optional[ServiceConfig] = None
     ) -> bool:
-        provider_name = (
-            "Atlas Cloud" if model == ServiceProviders.ATLASCLOUD.value else "OpenAI"
-        )
         client_kwargs: dict[str, str] = {"api_key": api_key}
         base_url = getattr(service_config, "base_url", None) if service_config else None
         if base_url:
@@ -256,8 +251,7 @@ class UserConfigurationValidator:
         except openai.AuthenticationError:
             if base_url and "openai.com" not in base_url:
                 raise ValueError(
-                    f"Invalid {provider_name} API key. The key was rejected by the API at "
-                    f"{base_url}. "
+                    f"Invalid OpenAI API key. The key was rejected by the API at {base_url}. "
                     "Please check that your API key is correct and has not been revoked."
                 )
             raise ValueError(
@@ -289,13 +283,12 @@ class UserConfigurationValidator:
         except Exception:
             if base_url:
                 raise ValueError(
-                    f"Failed to validate the {provider_name} API key using the API at "
-                    f"{base_url}. "
+                    f"Failed to validate the OpenAI API key using the API at {base_url}. "
                     "Please verify that the base_url is correct and reachable, and that the "
                     "API key is valid."
                 )
             raise ValueError(
-                f"Failed to validate the {provider_name} API key. Please try again later."
+                "Failed to validate the OpenAI API key. Please try again later."
             )
 
     def _check_deepgram_api_key(self, model: str, api_key: str) -> bool:

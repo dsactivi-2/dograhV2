@@ -30,7 +30,6 @@ async def test_whole_call_qa_tolerates_array_llm_response():
         usage_info={"call_duration_seconds": 12},
     )
     warning_mock = Mock()
-    llm_factory = Mock(return_value=object())
 
     with (
         patch.object(
@@ -44,9 +43,7 @@ async def test_whole_call_qa_tolerates_array_llm_response():
             new=AsyncMock(return_value=("openai", "gpt-4o", "sk-test", {})),
         ),
         patch.object(
-            qa_analysis,
-            "create_llm_service_from_provider",
-            llm_factory,
+            qa_analysis, "create_llm_service_from_provider", return_value=object()
         ),
         patch.object(
             qa_analysis,
@@ -73,4 +70,3 @@ async def test_whole_call_qa_tolerates_array_llm_response():
     assert "run 99" in warning_message
     assert "list" in warning_message
     assert "tag1" not in warning_message
-    assert llm_factory.call_args.kwargs["usage_context"] == "qa_analysis"

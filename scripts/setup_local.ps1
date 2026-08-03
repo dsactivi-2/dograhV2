@@ -281,7 +281,6 @@ if ($UseCoturn) {
     $envLines += @(
         ''
         '# TURN Server Configuration (time-limited credentials via TURN REST API)'
-        'ENABLE_COTURN=true'
         "TURN_HOST=$TurnHost"
         "TURN_SECRET=$TurnSecret"
     )

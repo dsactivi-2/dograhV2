@@ -4,8 +4,8 @@ Cloudonix implementation of the TelephonyProvider interface.
 
 import asyncio
 import json
+import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from urllib.parse import quote
 
 import aiohttp
 from fastapi import HTTPException
@@ -13,17 +13,13 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
-from api.services.telephony import ws_auth
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
-    ProviderPhoneNumberLookupError,
     ProviderSyncResult,
     TelephonyProvider,
 )
-from api.services.workflow.initial_context import merge_external_initial_context
 from api.utils.common import get_backend_endpoints
-from api.utils.telephony_address import normalize_telephony_address
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -61,7 +57,6 @@ class CloudonixProvider(TelephonyProvider):
         self.domain_id = self._normalize_domain(config.get("domain_id"))
         self.application_name = config.get("application_name")
         self.from_numbers = config.get("from_numbers", [])
-        self.default_from_number = config.get("default_from_number")
 
         # Handle both single number (string) and multiple numbers (list)
         if isinstance(self.from_numbers, str):
@@ -113,14 +108,15 @@ class CloudonixProvider(TelephonyProvider):
 
         endpoint = f"{self.base_url}/calls/{self.domain_id}/application"
 
-        # A caller-id is REQUIRED by Cloudonix
-        from_number = self.select_from_number(from_number)
+        # Use provided from_number or select a random one (REQUIRED by Cloudonix)
         if from_number is None:
-            raise ValueError(
-                "No phone numbers configured for Cloudonix provider. "
-                "At least one phone number is required as 'caller-id' for outbound calls. "
-                "Please configure phone numbers in the telephony settings."
-            )
+            if not self.from_numbers:
+                raise ValueError(
+                    "No phone numbers configured for Cloudonix provider. "
+                    "At least one phone number is required as 'caller-id' for outbound calls. "
+                    "Please configure phone numbers in the telephony settings."
+                )
+            from_number = random.choice(self.from_numbers)
         logger.info(
             f"Selected phone number {from_number} for outbound call to {to_number}"
         )
@@ -132,15 +128,12 @@ class CloudonixProvider(TelephonyProvider):
         # Prepare call data using Cloudonix callObject schema
         # Note: 'caller-id' is REQUIRED by Cloudonix API
         backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-        ws_url = ws_auth.build_media_ws_url(
-            wss_backend_endpoint, workflow_id, organization_id, workflow_run_id
-        )
         data: Dict[str, Any] = {
             "destination": to_number,
             "cxml": f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="{ws_url}"></Stream>
+        <Stream url="{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}"></Stream>
     </Connect>
     <Pause length="40"/>
 </Response>""",
@@ -172,11 +165,10 @@ class CloudonixProvider(TelephonyProvider):
             f"  From: {from_number}\n"
             f"  Workflow Run ID: {workflow_run_id}"
         )
-        # Redacted: the embedded CXML's stream URL carries a bearer capability token.
         logger.debug(
             f"[Cloudonix] Request details:\n"
             f"  Headers: {masked_headers}\n"
-            f"  Payload: {ws_auth.redact_token(json.dumps(data, indent=2))}"
+            f"  Payload: {json.dumps(data, indent=2)}"
         )
 
         async with aiohttp.ClientSession() as session:
@@ -653,11 +645,10 @@ class CloudonixProvider(TelephonyProvider):
                     for key, value in {
                         **{
                             k: v
-                            for k, v in merge_external_initial_context(
-                                {},
+                            for k, v in (
                                 custom_parameters
                                 if isinstance(custom_parameters, dict)
-                                else {},
+                                else {}
                             ).items()
                             if k not in builtin_context
                         },
@@ -978,64 +969,6 @@ class CloudonixProvider(TelephonyProvider):
         )
         return ProviderSyncResult(ok=True)
 
-    async def validate_phone_number(self, address: str) -> ProviderSyncResult:
-        """Verify that the address exists as a DNID in this Cloudonix domain."""
-        if not (self.bearer_token and self.domain_id):
-            raise ProviderPhoneNumberLookupError(
-                "Cloudonix bearer token and domain are required to validate "
-                "phone-number ownership"
-            )
-
-        normalized = normalize_telephony_address(address)
-        expected = normalized.canonical
-        encoded_address = quote(expected, safe="")
-        endpoint = (
-            f"{self.base_url}/customers/self/domains/{self.domain_id}/dnids/"
-            f"{encoded_address}"
-        )
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    endpoint, headers=self._get_auth_headers()
-                ) as response:
-                    if response.status == 404:
-                        return ProviderSyncResult(
-                            ok=False,
-                            message=(
-                                f"Address {expected} is not configured as a DNID "
-                                f"in Cloudonix domain {self.domain_id}. Add it in "
-                                "the Cloudonix Cockpit first."
-                            ),
-                        )
-                    if response.status != 200:
-                        body = await response.text()
-                        raise ProviderPhoneNumberLookupError(
-                            f"Cloudonix API {response.status}: {body}"
-                        )
-                    data = await response.json()
-        except ProviderPhoneNumberLookupError:
-            raise
-        except Exception as e:
-            raise ProviderPhoneNumberLookupError(
-                f"Cloudonix DNID lookup failed: {e}"
-            ) from e
-
-        source = data.get("source")
-        if source is not None:
-            try:
-                source = normalize_telephony_address(str(source)).canonical
-            except ValueError:
-                source = str(source).strip()
-        if source == expected:
-            return ProviderSyncResult(ok=True)
-        return ProviderSyncResult(
-            ok=False,
-            message=(
-                f"Address {expected} is not configured as a DNID in Cloudonix "
-                f"domain {self.domain_id}. Add it in the Cloudonix Cockpit first."
-            ),
-        )
-
     async def start_inbound_stream(
         self,
         *,
@@ -1060,10 +993,8 @@ class CloudonixProvider(TelephonyProvider):
     <Pause length="40"/>
 </Response>"""
 
-        # Redacted: the stream URL carries a bearer capability token, and this
-        # log line is the one place it would otherwise reach a log sink.
-        logger.info("Cloudonix inbound CXML response content:")
-        logger.info(ws_auth.redact_token(cxml_content))
+        logger.info(f"Cloudonix inbound CXML response content:")
+        logger.info(cxml_content)
 
         response = Response(content=cxml_content, media_type="application/xml")
 
@@ -1172,12 +1103,12 @@ class CloudonixProvider(TelephonyProvider):
         if not self.validate_config():
             raise ValueError("Cloudonix provider not properly configured")
 
-        from_number = self.select_from_number()
-        if from_number is None:
+        if not self.from_numbers:
             raise ValueError(
                 "No phone numbers configured for Cloudonix provider; a caller-id "
                 "is required to place the transfer call."
             )
+        from_number = random.choice(self.from_numbers)
 
         backend_endpoint, _ = await get_backend_endpoints()
         callback_url = f"{backend_endpoint}/api/v1/telephony/cloudonix/transfer-result/{transfer_id}"

@@ -994,22 +994,13 @@ def create_llm_service_from_provider(
     credentials: str | None = None,
     temperature: float | None = None,
     bill_to: str | None = None,
-    usage_context: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
 
     Also used by create_llm_service which extracts these from user_config.
-
-    Args:
-        usage_context: Optional tag describing what the LLM instance is used for
-            (e.g. "voicemail_detection"). Sent as request metadata by the Dograh
-            provider; ignored by other providers.
     """
     logger.info(f"Creating LLM service: provider={provider}, model={model}")
-    if provider in (
-        ServiceProviders.OPENAI.value,
-        ServiceProviders.ATLASCLOUD.value,
-    ):
+    if provider == ServiceProviders.OPENAI.value:
         kwargs = {}
         if base_url:
             _validate_runtime_service_url(base_url, "base_url")
@@ -1069,7 +1060,6 @@ def create_llm_service_from_provider(
             base_url=f"{MPS_API_URL}/api/v1/llm",
             api_key=api_key,
             correlation_id=correlation_id,
-            usage_context=usage_context,
             settings=OpenAILLMSettings(model=model),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
@@ -1322,21 +1312,14 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         )
 
 
-def create_llm_service(
-    user_config,
-    correlation_id: str | None = None,
-    usage_context: str | None = None,
-):
+def create_llm_service(user_config, correlation_id: str | None = None):
     """Create and return appropriate LLM service based on user configuration."""
     provider = user_config.llm.provider
     model = user_config.llm.model
     api_key = user_config.llm.api_key
 
     kwargs = {}
-    if provider in (
-        ServiceProviders.OPENAI.value,
-        ServiceProviders.ATLASCLOUD.value,
-    ):
+    if provider == ServiceProviders.OPENAI.value:
         kwargs["base_url"] = user_config.llm.base_url
     elif provider == ServiceProviders.OPENROUTER.value:
         kwargs["base_url"] = user_config.llm.base_url
@@ -1366,6 +1349,5 @@ def create_llm_service(
         model,
         api_key,
         correlation_id=correlation_id,
-        usage_context=usage_context,
         **kwargs,
     )
