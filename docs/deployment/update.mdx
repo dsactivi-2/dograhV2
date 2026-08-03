@@ -138,6 +138,22 @@ sudo docker compose --profile remote build
 sudo docker compose --profile remote up -d
 ```
 
+For a fork deployed from source, use the included wrapper instead. It aborts when
+the checkout has local changes, creates a local rollback tag, updates the selected
+branch, updates submodules, validates the remote configuration, then rebuilds:
+
+```bash
+./scripts/update_source_build.sh
+
+# Deploy a tested fork branch before it has been merged into main:
+./scripts/update_source_build.sh --branch agent/deepgram-2-stt-profile
+```
+
+The wrapper never modifies `.env`, Docker volumes, or deployment secrets. It is
+only for installations with `docker-compose.override.yaml` (source-build mode).
+Do not use `update_remote.sh` for a source build; that script refreshes the
+prebuilt-image deployment bundle instead.
+
 <Warning>
 If you update the `pipecat` submodule, you **must** run `git submodule update --init --recursive` before rebuilding, or the Docker build will not pick up `pipecat` changes.
 </Warning>
