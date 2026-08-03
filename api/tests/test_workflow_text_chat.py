@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pipecat.processors.aggregators.llm_context import LLMSpecificMessage
+
 from api.db.models import OrganizationModel, UserModel, organization_users_association
 from api.enums import OrganizationConfigurationKey
 from api.schemas.ai_model_configuration import EffectiveAIModelConfiguration
