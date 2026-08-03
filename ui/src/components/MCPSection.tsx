@@ -99,7 +99,7 @@ export function MCPSection() {
         {tunnelUrl && (
           <p className="text-xs text-muted-foreground">
             Use the public URL from externally-hosted assistants; the backend URL
-            works from the deployment's own network.
+            works from the deployment&apos;s own network.
           </p>
         )}
       </div>
