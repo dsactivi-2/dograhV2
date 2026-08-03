@@ -216,6 +216,14 @@ services:
       - "traefik.http.routers.dograh-api.tls=true"
       - "traefik.http.routers.dograh-api.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
       - "traefik.http.routers.dograh-api.priority=10"
+      # MCP OAuth discovery (RFC 8414 / RFC 9728) lives at host root
+      # /.well-known/* — must hit the API, not the UI catch-all.
+      - "traefik.http.routers.dograh-wellknown.rule=Host(`${PUBLIC_HOST}`) && PathPrefix(`/.well-known`)"
+      - "traefik.http.routers.dograh-wellknown.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.dograh-wellknown.tls=true"
+      - "traefik.http.routers.dograh-wellknown.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.routers.dograh-wellknown.priority=20"
+      - "traefik.http.routers.dograh-wellknown.service=dograh-api"
       - "traefik.http.services.dograh-api.loadbalancer.server.port=8000"
     networks:
       - app-network

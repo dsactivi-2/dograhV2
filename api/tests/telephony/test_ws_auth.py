@@ -441,4 +441,3 @@ def test_query_token_still_authenticates(ws_client):
     """ARI's transport, which Asterisk builds itself and nothing strips."""
     tok = ws_auth.mint_ws_token(7, 3, 42)
     assert _close_code(ws_client, f"/api/v1/telephony/ws/7/3/42?token={tok}") == 4404
-

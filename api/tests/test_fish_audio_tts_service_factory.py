@@ -164,9 +164,7 @@ def test_fish_audio_key_validation_accepts_valid_key():
     validator = UserConfigurationValidator()
     with patch("api.services.configuration.check_validity.httpx.get") as mock_get:
         mock_get.return_value.status_code = 200
-        assert (
-            validator._check_fish_audio_api_key("s2-pro", "fish-valid-key") is True
-        )
+        assert validator._check_fish_audio_api_key("s2-pro", "fish-valid-key") is True
     called_url = mock_get.call_args.args[0]
     assert called_url == "https://api.fish.audio/model"
     headers = mock_get.call_args.kwargs["headers"]

@@ -223,7 +223,12 @@ class VonageProvider(TelephonyProvider):
                 "endpoint": [
                     {
                         "type": "websocket",
-                        "uri": ws_auth.build_media_ws_url(wss_backend_endpoint, workflow_id, organization_id, workflow_run_id),
+                        "uri": ws_auth.build_media_ws_url(
+                            wss_backend_endpoint,
+                            workflow_id,
+                            organization_id,
+                            workflow_run_id,
+                        ),
                         "content-type": "audio/l16;rate=16000",  # 16kHz Linear PCM
                         "headers": {},
                     }

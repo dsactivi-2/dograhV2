@@ -120,7 +120,6 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.HUGGINGFACE,
         ServiceProviders.ASSEMBLYAI,
         ServiceProviders.GLADIA,
-
         ServiceProviders.RIME,
         ServiceProviders.MINIMAX,
         ServiceProviders.GOOGLE_VERTEX,
