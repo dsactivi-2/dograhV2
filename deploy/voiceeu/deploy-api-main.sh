@@ -22,6 +22,9 @@
 #   - rebuild UI
 #   - change secrets / .env
 #
+# Before deploy (recommended):
+#   sudo bash preflight-deploy-api.sh   # READ-ONLY path/health checks
+#
 # Usage (on the server as root):
 #   curl -fsSL -o /root/deploy-api-main.sh \
 #     'https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/deploy/voiceeu/deploy-api-main.sh'
