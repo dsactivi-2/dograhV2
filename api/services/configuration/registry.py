@@ -67,6 +67,7 @@ class ServiceProviders(str, Enum):
     OPENAI = "openai"
     DEEPGRAM = "deepgram"
     DEEPGRAM_2 = "deepgram_2"
+    DEEPGRAM_3 = "deepgram_3"
     GROQ = "groq"
     OPENROUTER = "openrouter"
     INWORLD = "inworld"
@@ -105,6 +106,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.OPENAI,
         ServiceProviders.DEEPGRAM,
         ServiceProviders.DEEPGRAM_2,
+        ServiceProviders.DEEPGRAM_3,
         ServiceProviders.GROQ,
         ServiceProviders.OPENROUTER,
         ServiceProviders.INWORLD,
@@ -118,6 +120,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.HUGGINGFACE,
         ServiceProviders.ASSEMBLYAI,
         ServiceProviders.GLADIA,
+
         ServiceProviders.RIME,
         ServiceProviders.MINIMAX,
         ServiceProviders.GOOGLE_VERTEX,
@@ -265,6 +268,7 @@ GOOGLE_VERTEX_REALTIME_PROVIDER_MODEL_CONFIG = provider_model_config(
 )
 DEEPGRAM_PROVIDER_MODEL_CONFIG = provider_model_config("Deepgram")
 DEEPGRAM_2_PROVIDER_MODEL_CONFIG = provider_model_config("Deepgram 2")
+DEEPGRAM_3_PROVIDER_MODEL_CONFIG = provider_model_config("Deepgram 3")
 ELEVENLABS_PROVIDER_MODEL_CONFIG = provider_model_config("ElevenLabs")
 CARTESIA_PROVIDER_MODEL_CONFIG = provider_model_config("Cartesia")
 XAI_PROVIDER_MODEL_CONFIG = provider_model_config("xAI")
@@ -1553,6 +1557,38 @@ class Deepgram2STTConfiguration(BaseSTTConfiguration):
 
 
 @register_stt
+class Deepgram3STTConfiguration(BaseSTTConfiguration):
+    """Independent Deepgram STT profile with nova-3 live-agent defaults.
+
+    Fully separate provider entry so the original Deepgram and Deepgram 2
+    configurations keep their behaviour and remain independently selectable.
+    """
+
+    model_config = DEEPGRAM_3_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.DEEPGRAM_3] = ServiceProviders.DEEPGRAM_3
+    model: str = Field(
+        default="nova-3-general",
+        description="Deepgram STT model.",
+        json_schema_extra={"examples": DEEPGRAM_STT_MODELS},
+    )
+    language: str = Field(
+        default="multi",
+        description=(
+            "Language code. 'multi' enables Nova-3 auto-detect and omits "
+            "language hints for Flux multilingual auto-detect."
+        ),
+        json_schema_extra={
+            "examples": DEEPGRAM_LANGUAGES,
+            "model_options": {
+                "nova-3-general": DEEPGRAM_LANGUAGES,
+                "flux-general-en": ("en",),
+                "flux-general-multi": DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
+            },
+        },
+    )
+
+
+@register_stt
 class CartesiaSTTConfiguration(BaseSTTConfiguration):
     model_config = CARTESIA_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.CARTESIA] = ServiceProviders.CARTESIA
@@ -1922,6 +1958,7 @@ STTConfig = Annotated[
     Union[
         DeepgramSTTConfiguration,
         Deepgram2STTConfiguration,
+        Deepgram3STTConfiguration,
         CartesiaSTTConfiguration,
         OpenAISTTConfiguration,
         GoogleSTTConfiguration,
