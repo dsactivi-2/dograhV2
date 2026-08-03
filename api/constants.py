@@ -107,6 +107,20 @@ POSTHOG_HOST = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")
 ENABLE_ARI_STASIS = os.getenv("ENABLE_ARI_STASIS", "false").lower() == "true"
 SERIALIZE_LOG_OUTPUT = os.getenv("SERIALIZE_LOG_OUTPUT", "false").lower() == "true"
 
+# Telephony media WebSocket authentication.
+# The carrier/connector dials back the media socket
+# /api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}, whose
+# id triple is otherwise a guessable bearer capability. When a secret is set,
+# a one-time-use HMAC token is appended to the URL (see ws_auth.py).
+# Two-phase, backward-compatible rollout:
+#   * secret unset            -> feature off, URLs unchanged (default)
+#   * secret set, enforce off -> tokens minted + verified; invalid ones only logged
+#   * secret set, enforce on  -> invalid/missing tokens rejected (WS close 4401)
+TELEPHONY_WS_TOKEN_SECRET = os.getenv("TELEPHONY_WS_TOKEN_SECRET") or None
+TELEPHONY_WS_TOKEN_ENFORCE = (
+    os.getenv("TELEPHONY_WS_TOKEN_ENFORCE", "false").lower() == "true"
+)
+
 # Logging configuration
 LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", None)
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
@@ -195,6 +209,8 @@ DEFAULT_CIRCUIT_BREAKER_CONFIG = {
 }
 
 
+# Whether this deployment runs a TURN server (coturn).
+ENABLE_COTURN = os.getenv("ENABLE_COTURN", "false").lower() == "true"
 TURN_SECRET = os.getenv("TURN_SECRET")
 # Host browsers dial for TURN/ICE. Derives from PUBLIC_HOST; set explicitly only
 # when the TURN server runs on a separate host from the app.

@@ -162,7 +162,11 @@ def _elevenlabs_realtime_stt_host(base_url: str) -> str:
 
 
 def stt_uses_external_turns(user_config) -> bool:
-    if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
+    if user_config.stt.provider in {
+        ServiceProviders.DEEPGRAM.value,
+        ServiceProviders.DEEPGRAM_2.value,
+        ServiceProviders.DEEPGRAM_3.value,
+    }:
         return user_config.stt.model in DEEPGRAM_FLUX_MODELS
     if user_config.stt.provider == ServiceProviders.DOGRAH.value:
         return dograh_stt_uses_flux_language(getattr(user_config.stt, "language", None))
@@ -224,7 +228,11 @@ def create_stt_service(
     logger.info(
         f"Creating STT service: provider={user_config.stt.provider}, model={user_config.stt.model}"
     )
-    if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
+    if user_config.stt.provider in {
+        ServiceProviders.DEEPGRAM.value,
+        ServiceProviders.DEEPGRAM_2.value,
+        ServiceProviders.DEEPGRAM_3.value,
+    }:
         if user_config.stt.model in DEEPGRAM_FLUX_MODELS:
             settings_kwargs = {
                 "model": user_config.stt.model,
@@ -252,16 +260,44 @@ def create_stt_service(
         # Use language from user config, defaulting to "multi" for multilingual support
         language = getattr(user_config.stt, "language", None) or "multi"
         stt_base_url, _flux_url, _tts_base = _deepgram_inference_urls()
+
+        if user_config.stt.provider == ServiceProviders.DEEPGRAM_3.value:
+            # Independent Deepgram 3 profile defaults. Keyterm prompting and
+            # utterance_end_ms are intentionally not set for this profile.
+            # vad_events is not a declared DeepgramSTTSettings field, so it is
+            # passed via extra and forwarded as a Deepgram connect param.
+            settings = DeepgramSTTSettings(
+                language=language,
+                profanity_filter=False,
+                model=user_config.stt.model,
+                smart_format=True,
+                punctuate=True,
+                numerals=True,
+                interim_results=False,
+                diarize=False,
+                endpointing=400,
+                extra={"vad_events": True},
+            )
+        else:
+            settings_kwargs = {
+                "language": language,
+                "profanity_filter": False,
+                "endpointing": 100,
+                "model": user_config.stt.model,
+                "keyterm": keyterms or [],
+            }
+            if user_config.stt.provider == ServiceProviders.DEEPGRAM_2.value:
+                settings_kwargs.update(
+                    smart_format=True,
+                    interim_results=True,
+                    punctuate=True,
+                )
+            settings = DeepgramSTTSettings(**settings_kwargs)
+
         return DeepgramSTTService(
             api_key=user_config.stt.api_key,
             base_url=stt_base_url,
-            settings=DeepgramSTTSettings(
-                language=language,
-                profanity_filter=False,
-                endpointing=100,
-                model=user_config.stt.model,
-                keyterm=keyterms or [],
-            ),
+            settings=settings,
             should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
             sample_rate=audio_config.transport_in_sample_rate,
         )
