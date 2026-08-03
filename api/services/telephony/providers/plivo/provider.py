@@ -16,6 +16,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import TelephonyCallStatus, WorkflowRunMode
+from api.services.telephony import ws_auth
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -244,7 +245,7 @@ class PlivoProvider(TelephonyProvider):
 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}</Stream>
+    <Stream bidirectional="true" keepCallAlive="true" contentType="audio/x-mulaw;rate=8000">{ws_auth.build_media_ws_url(wss_backend_endpoint, workflow_id, organization_id, workflow_run_id)}</Stream>
 </Response>"""
 
     async def get_call_cost(self, call_id: str) -> Dict[str, Any]:

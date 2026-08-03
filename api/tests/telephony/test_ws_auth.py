@@ -264,15 +264,8 @@ async def test_webhook_response_carries_token(secret, monkeypatch, package, cls_
 
     body = await getattr(module, cls_name)({}).get_webhook_response(7, 3, 42)
 
-    # Twilio strips query strings and currently passes the base path without a
-    # token suffix (it delivers the token via <Parameter> instead). Other
-    # providers embed the token as a trailing path segment per
-    # build_media_ws_url — see test_url_keeps_token_out_of_the_query_string.
-    if package == "twilio":
-        assert "/api/v1/telephony/ws/7/3/42" in body
-        assert f"/api/v1/telephony/ws/7/3/42/{ws_auth.mint_ws_token(7, 3, 42)}" not in body
-    else:
-        assert f"/api/v1/telephony/ws/7/3/42/{ws_auth.mint_ws_token(7, 3, 42)}" in body
+    # Path segment, not ?token= — see test_url_keeps_token_out_of_the_query_string.
+    assert f"/api/v1/telephony/ws/7/3/42/{ws_auth.mint_ws_token(7, 3, 42)}" in body
     assert "token=" not in body
 
 
@@ -448,3 +441,4 @@ def test_query_token_still_authenticates(ws_client):
     """ARI's transport, which Asterisk builds itself and nothing strips."""
     tok = ws_auth.mint_ws_token(7, 3, 42)
     assert _close_code(ws_client, f"/api/v1/telephony/ws/7/3/42?token={tok}") == 4404
+
