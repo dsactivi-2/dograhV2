@@ -926,7 +926,7 @@ def create_tts_service(
                     "Configure it in your TTS settings."
                 ),
             )
-        model = getattr(user_config.tts, "model", None) or "s2-pro"
+        model = getattr(user_config.tts, "model", None) or "s2.1-pro"
         language_code = getattr(user_config.tts, "language", None) or "en"
         latency = getattr(user_config.tts, "latency", None) or "balanced"
         if latency not in ("balanced", "normal"):
