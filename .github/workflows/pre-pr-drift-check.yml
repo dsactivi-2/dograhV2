@@ -78,8 +78,18 @@ jobs:
           MINIO_PUBLIC_ENDPOINT: http://localhost:9000
           DEPLOYMENT_MODE: oss
         run: |
+          set -euo pipefail
+          spec="$GITHUB_WORKSPACE/docs/api-reference/openapi.json"
+          echo "OpenAPI hash before generation:"
+          sha256sum "$spec"
+          echo "OpenAPI final bytes before generation:"
+          tail -c 16 "$spec" | od -An -t x1
           cd /tmp
           PYTHONPATH="$GITHUB_WORKSPACE" python -u -m scripts.dump_docs_openapi
+          echo "OpenAPI hash after generation:"
+          sha256sum "$spec"
+          echo "OpenAPI final bytes after generation:"
+          tail -c 16 "$spec" | od -An -t x1
 
       - name: Check for OpenAPI drift
         run: |
