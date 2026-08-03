@@ -1,5 +1,5 @@
 langfuse==3.9.3
-fastapi==0.135.3
+fastapi==0.141.1
 asyncpg==0.30.0
 alembic==1.16.5
 redis==5.3.1
