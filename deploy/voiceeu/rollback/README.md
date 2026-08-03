@@ -19,25 +19,6 @@
 
 ---
 
-
-## API redeploy (main)
-
-Nur die **API** neu bauen und recreaten (Postgres/Redis/MinIO/`.env` unangetastet).
-
-Script im Repo: [`../deploy-api-main.sh`](../deploy-api-main.sh)
-
-```bash
-# on DograhEUV2 as root
-curl -fsSL -o /root/deploy-api-main.sh \
-  'https://raw.githubusercontent.com/dsactivi-2/dograhV2/main/deploy/voiceeu/deploy-api-main.sh'
-chmod +x /root/deploy-api-main.sh
-sudo bash /root/deploy-api-main.sh
-# optional dry-run:
-# sudo bash /root/deploy-api-main.sh --dry-run
-```
-
----
-
 ## Schnell-Rollback (API)
 
 Zurück auf **vor** Deepgram-EU (Image `dograhai/dograh-api:1.43.0`):

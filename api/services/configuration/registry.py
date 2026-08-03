@@ -65,7 +65,6 @@ class ServiceType(Enum):
 
 class ServiceProviders(str, Enum):
     OPENAI = "openai"
-    ATLASCLOUD = "atlascloud"
     DEEPGRAM = "deepgram"
     DEEPGRAM_2 = "deepgram_2"
     DEEPGRAM_3 = "deepgram_3"
@@ -105,7 +104,6 @@ class ServiceProviders(str, Enum):
 class BaseServiceConfiguration(BaseModel):
     provider: Literal[
         ServiceProviders.OPENAI,
-        ServiceProviders.ATLASCLOUD,
         ServiceProviders.DEEPGRAM,
         ServiceProviders.DEEPGRAM_2,
         ServiceProviders.DEEPGRAM_3,
@@ -254,10 +252,6 @@ def provider_model_config(
 
 # Suggested models for each provider (used for UI dropdown)
 OPENAI_PROVIDER_MODEL_CONFIG = provider_model_config("OpenAI")
-ATLASCLOUD_PROVIDER_MODEL_CONFIG = provider_model_config(
-    "Atlas Cloud",
-    description="Atlas Cloud OpenAI-compatible LLM API.",
-)
 GOOGLE_PROVIDER_MODEL_CONFIG = provider_model_config("Google")
 GROQ_PROVIDER_MODEL_CONFIG = provider_model_config("Groq")
 OPENROUTER_PROVIDER_MODEL_CONFIG = provider_model_config("Open Router")
@@ -336,11 +330,6 @@ OPENAI_MODELS = [
     "gpt-3.5-turbo",
 ]
 
-ATLASCLOUD_MODELS = [
-    "qwen/qwen3.5-flash",
-    "deepseek-ai/deepseek-v4-pro",
-]
-
 GROQ_MODELS = [
     "llama-3.3-70b-versatile",
     "deepseek-r1-distill-llama-70b",
@@ -382,21 +371,6 @@ class OpenAILLMService(BaseLLMConfiguration):
     base_url: str = Field(
         default="https://api.openai.com/v1",
         description="Override only if using an OpenAI-compatible API (e.g. local LLM, proxy).",
-    )
-
-
-@register_llm
-class AtlasCloudLLMService(BaseLLMConfiguration):
-    model_config = ATLASCLOUD_PROVIDER_MODEL_CONFIG
-    provider: Literal[ServiceProviders.ATLASCLOUD] = ServiceProviders.ATLASCLOUD
-    model: str = Field(
-        default="qwen/qwen3.5-flash",
-        description="Atlas Cloud OpenAI-compatible chat model identifier.",
-        json_schema_extra={"examples": ATLASCLOUD_MODELS, "allow_custom_input": True},
-    )
-    base_url: str = Field(
-        default="https://api.atlascloud.ai/v1",
-        description="Atlas Cloud OpenAI-compatible API endpoint.",
     )
 
 
@@ -870,7 +844,6 @@ REALTIME_PROVIDERS = {
 LLMConfig = Annotated[
     Union[
         OpenAILLMService,
-        AtlasCloudLLMService,
         GoogleVertexLLMConfiguration,
         GroqLLMService,
         OpenRouterLLMConfiguration,
@@ -1532,7 +1505,7 @@ class DeepgramSTTConfiguration(BaseSTTConfiguration):
     model: str = Field(
         default="nova-3-general",
         description="Deepgram STT model.",
-        json_schema_extra={"examples": DEEPGRAM_STT_MODELS, "allow_custom_input": True},
+        json_schema_extra={"examples": DEEPGRAM_STT_MODELS},
     )
     language: str = Field(
         default="multi",
@@ -1542,10 +1515,8 @@ class DeepgramSTTConfiguration(BaseSTTConfiguration):
         ),
         json_schema_extra={
             "examples": DEEPGRAM_LANGUAGES,
-            "allow_custom_input": True,
             "model_options": {
                 "nova-3-general": DEEPGRAM_LANGUAGES,
-                "nova-3-medical": DEEPGRAM_LANGUAGES,
                 "flux-general-en": ("en",),
                 "flux-general-multi": DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
             },

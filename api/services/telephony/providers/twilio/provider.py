@@ -3,6 +3,7 @@ Twilio implementation of the TelephonyProvider interface.
 """
 
 import json
+import random
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import aiohttp
@@ -11,12 +12,10 @@ from loguru import logger
 from twilio.request_validator import RequestValidator
 
 from api.enums import TelephonyCallStatus, WorkflowRunMode
-from api.services.telephony import ws_auth
 from api.services.telephony.base import (
     AnsweringMachineDetectionResult,
     CallInitiationResult,
     NormalizedInboundData,
-    ProviderPhoneNumberLookupError,
     ProviderSyncResult,
     TelephonyProvider,
 )
@@ -49,7 +48,6 @@ class TwilioProvider(TelephonyProvider):
         self.account_sid = config.get("account_sid")
         self.auth_token = config.get("auth_token")
         self.from_numbers = config.get("from_numbers", [])
-        self.default_from_number = config.get("default_from_number")
         self.amd_enabled: bool = bool(config.get("amd_enabled", False))
 
         # Handle both single number (string) and multiple numbers (list)
@@ -74,7 +72,9 @@ class TwilioProvider(TelephonyProvider):
 
         endpoint = f"{self.base_url}/Calls.json"
 
-        from_number = self.select_from_number(from_number)
+        # Use provided from_number or select a random one
+        if from_number is None:
+            from_number = random.choice(self.from_numbers)
         logger.info(f"Selected phone number {from_number} for outbound call")
         logger.info(f"Webhook url received - {webhook_url}")
 
@@ -172,20 +172,15 @@ class TwilioProvider(TelephonyProvider):
         Generate TwiML response for starting a call session.
         """
         _, wss_backend_endpoint = await get_backend_endpoints()
-        ws_url = ws_auth.build_media_ws_url(
-            wss_backend_endpoint, workflow_id, organization_id, workflow_run_id
-        )
 
         twiml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="{ws_url}"></Stream>
+        <Stream url="{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{organization_id}/{workflow_run_id}"></Stream>
     </Connect>
     <Pause length="40"/>
 </Response>"""
-        # Redacted: the stream URL carries a bearer capability token, and this
-        # log line is the one place it would otherwise reach a log sink.
-        logger.info(f"Twiml content generated - {ws_auth.redact_token(twiml_content)}")
+        logger.info(f"Twiml content generated - {twiml_content}")
         return twiml_content
 
     async def get_call_cost(self, call_id: str) -> Dict[str, Any]:
@@ -442,7 +437,7 @@ class TwilioProvider(TelephonyProvider):
         addresses (SIP URIs, extensions) are skipped — Twilio's
         IncomingPhoneNumbers resource only covers PSTN numbers.
         """
-        if not (self.account_sid and self.auth_token):
+        if not self.validate_config():
             return ProviderSyncResult(
                 ok=False, message="Twilio provider not properly configured"
             )
@@ -458,13 +453,6 @@ class TwilioProvider(TelephonyProvider):
         except Exception as e:
             logger.error(f"Failed to look up Twilio number {e164}: {e}")
             return ProviderSyncResult(ok=False, message=f"Twilio lookup failed: {e}")
-
-        if not sid and webhook_url is None:
-            logger.info(
-                f"Twilio number {e164} is already detached or absent from "
-                f"account {self.account_sid}"
-            )
-            return ProviderSyncResult(ok=True)
 
         if not sid:
             return ProviderSyncResult(
@@ -509,35 +497,6 @@ class TwilioProvider(TelephonyProvider):
         logger.info(f"Twilio VoiceUrl {action} for {e164} (sid={sid})")
         return ProviderSyncResult(ok=True)
 
-    async def validate_phone_number(self, address: str) -> ProviderSyncResult:
-        """Verify PSTN ownership through Twilio's IncomingPhoneNumbers list."""
-        normalized = normalize_telephony_address(address)
-        if normalized.address_type != "pstn":
-            return ProviderSyncResult(ok=True)
-        if not (self.account_sid and self.auth_token):
-            raise ProviderPhoneNumberLookupError(
-                "Twilio account SID and auth token are required to validate "
-                "phone-number ownership"
-            )
-
-        try:
-            sid = await self._lookup_incoming_number_sid(normalized.canonical)
-        except Exception as e:
-            raise ProviderPhoneNumberLookupError(
-                f"Twilio phone-number lookup failed: {e}"
-            ) from e
-
-        if sid:
-            return ProviderSyncResult(ok=True)
-        return ProviderSyncResult(
-            ok=False,
-            message=(
-                f"Phone number {normalized.canonical} is not owned by this "
-                f"Twilio account ({self.account_sid}). Add it in the Twilio "
-                "console first."
-            ),
-        )
-
     async def _lookup_incoming_number_sid(self, e164: str) -> Optional[str]:
         """Return the Twilio SID of the IncomingPhoneNumber matching ``e164``."""
         endpoint = f"{self.base_url}/IncomingPhoneNumbers.json"
@@ -550,10 +509,9 @@ class TwilioProvider(TelephonyProvider):
                     raise Exception(f"Twilio API {response.status}: {body}")
                 data = await response.json()
         numbers = data.get("incoming_phone_numbers") or []
-        for number in numbers:
-            if number.get("phone_number") == e164:
-                return number.get("sid")
-        return None
+        if not numbers:
+            return None
+        return numbers[0].get("sid")
 
     async def start_inbound_stream(
         self,
@@ -655,7 +613,8 @@ class TwilioProvider(TelephonyProvider):
         if not self.validate_config():
             raise ValueError("Twilio provider not properly configured")
 
-        from_number = self.select_from_number()
+        # Select a random phone number for the transfer
+        from_number = random.choice(self.from_numbers)
         logger.info(f"Selected phone number {from_number} for transfer call")
 
         backend_endpoint, _ = await get_backend_endpoints()
