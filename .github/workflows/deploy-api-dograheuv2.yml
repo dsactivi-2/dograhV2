@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Deploy over SSH (build on server)
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DOGRAH_DEPLOY_HOST }}
           username: ${{ secrets.DOGRAH_DEPLOY_USER }}
