@@ -65,10 +65,11 @@ git remote get-url "$REMOTE_NAME" >/dev/null 2>&1 || fail "Git remote '$REMOTE_N
 [[ -f .env ]] || fail ".env is missing; refusing to start an unconfigured deployment."
 [[ -x ./remote_up.sh ]] || fail "remote_up.sh is missing or not executable."
 
-# Source trees are operator-owned. Do not overwrite local configuration or
-# uncommitted customization; the operator must resolve it intentionally first.
-if [[ -n "$(git status --porcelain)" ]]; then
-    echo "Refusing to update because the checkout has local changes:" >&2
+# Source deployments create untracked files such as docker-compose.override.yaml
+# and certificates. They are not overwritten by a fast-forward update. Tracked
+# source edits or staged changes, however, must be resolved intentionally first.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Refusing to update because the checkout has tracked local changes:" >&2
     git status --short >&2
     echo "Commit, stash, or discard those changes before retrying." >&2
     exit 1
@@ -82,6 +83,11 @@ git fetch --prune "$REMOTE_NAME" "$BRANCH"
 
 REMOTE_REF="refs/remotes/$REMOTE_NAME/$BRANCH"
 git rev-parse --verify "$REMOTE_REF" >/dev/null 2>&1 || fail "Remote branch '$REMOTE_NAME/$BRANCH' was not fetched."
+
+read -r BEHIND AHEAD < <(git rev-list --left-right --count "$REMOTE_REF...HEAD")
+if [[ "$AHEAD" != "0" ]]; then
+    fail "Local commits are not on '$REMOTE_NAME/$BRANCH'; refusing to replace or merge them automatically."
+fi
 
 git tag "$BACKUP_TAG" "$CURRENT_REF"
 echo "Created local rollback tag: $BACKUP_TAG ($CURRENT_REF)"

@@ -139,8 +139,9 @@ sudo docker compose --profile remote up -d
 ```
 
 For a fork deployed from source, use the included wrapper instead. It aborts when
-the checkout has local changes, creates a local rollback tag, updates the selected
-branch, updates submodules, validates the remote configuration, then rebuilds:
+tracked source files or local commits would be affected, creates a local rollback
+tag, updates the selected branch, updates submodules, validates the remote
+configuration, then rebuilds:
 
 ```bash
 ./scripts/update_source_build.sh
