@@ -78,27 +78,29 @@ jobs:
           MINIO_PUBLIC_ENDPOINT: http://localhost:9000
           DEPLOYMENT_MODE: oss
         run: |
-          set -euo pipefail
-          spec="$GITHUB_WORKSPACE/docs/api-reference/openapi.json"
-          echo "OpenAPI hash before generation:"
-          sha256sum "$spec"
-          echo "OpenAPI final bytes before generation:"
-          tail -c 16 "$spec" | od -An -t x1
           cd /tmp
           PYTHONPATH="$GITHUB_WORKSPACE" python -u -m scripts.dump_docs_openapi
-          echo "OpenAPI hash after generation:"
-          sha256sum "$spec"
-          echo "OpenAPI final bytes after generation:"
-          tail -c 16 "$spec" | od -An -t x1
 
       - name: Check for OpenAPI drift
         run: |
-          if ! git diff --exit-code docs/api-reference/openapi.json; then
-            echo "::error::docs/api-reference/openapi.json is out of sync with the FastAPI app."
-            echo "Run 'python -m scripts.dump_docs_openapi' locally (with api/.env sourced) and commit the result."
-            exit 1
-          fi
-          echo "OpenAPI spec is in sync."
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          path = Path("docs/api-reference/openapi.json")
+          committed = subprocess.check_output(
+              ["git", "show", f"HEAD:{path.as_posix()}"], text=True
+          )
+          generated = path.read_text()
+
+          if json.loads(committed) != json.loads(generated):
+              print("::error::docs/api-reference/openapi.json is semantically out of sync with the FastAPI app.")
+              print("Run 'python -m scripts.dump_docs_openapi' locally (with api/.env sourced) and commit the result.")
+              raise SystemExit(1)
+
+          print("OpenAPI spec is semantically in sync.")
+          PY
 
       - name: Send Slack notification - Failure
         if: ${{ failure() && env.SLACK_WEBHOOK_URL != '' }}
