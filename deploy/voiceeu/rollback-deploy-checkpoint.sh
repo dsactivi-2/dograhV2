@@ -89,7 +89,7 @@ docker compose -f "$DEPLOY_DIR/docker-compose.yaml" stop api ui 2>/dev/null || t
 info "Restoring deployment and source trees."
 mkdir -p "$DEPLOY_DIR" "$SOURCE_DIR"
 rsync -a --delete "$TMP/deploy-parent/" "$DEPLOY_DIR/"
-rsync -a --delete "$TMP/source-parent/" "$(dirname "$SOURCE_DIR")/"
+rsync -a --delete "$TMP/source-parent/$(basename "$SOURCE_DIR")/" "$SOURCE_DIR/"
 
 docker compose -f "$DEPLOY_DIR/docker-compose.yaml" config -q
 
