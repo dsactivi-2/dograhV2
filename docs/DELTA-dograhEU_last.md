@@ -1,7 +1,7 @@
 # Delta-Vergleich: dograhV2 vs. dograhEU_last
 
 **Erstellt:** 2026-08-14  
-**Aktualisiert:** 2026-08-14 (Kategorie-1-Verifizierung + Abhängigkeitsanalyse)  
+**Aktualisiert:** 2026-08-14 (Kategorie-1-Verifizierung + Abhängigkeitsanalyse + Brückenanalyse)  
 **Vergleich:** `dsactivi-2/dograhV2` (main) ↔ `dsactivi-2/dograhEU_last` (main)
 
 ---
@@ -64,6 +64,199 @@ Von den 219 Kategorie-1-Dateien werden **30 Dateien** direkt von V2-geändertem 
 |-------|--------|--------------|
 | **C) Runtime-safe** | 189 | Keine Inbound-Nutzung von V2-Code, isoliert (Docs, CI, Tests, neue Features) |
 | **D) V2-Code hängt davon ab** | 30 | Import-, API-, Config- oder Prozess-Kopplung mit V2-geändertem Code |
+
+---
+
+## Brückenanalyse: Ist die Isolation der 189 echt? (2026-08-14)
+
+### Fragestellung
+
+Die 189 Dateien (Liste C) haben keine DIREKTE Inbound-Nutzung von V2-geändertem Code. Die 30 (Liste D) koppeln mit V2. Aber: **Ist die Isolation eine Illusion, weil die 30 in der Mitte sitzen?**
+
+### Analyse-Richtungen
+
+1. **30 → 189**: Importieren die upstream-Versionen der 30 D-Dateien etwas aus den 189 C-Dateien?
+2. **189 → 30**: Importieren die 189 C-Dateien etwas aus den 30 D-Dateien?
+
+### Urteil
+
+**⚠️ NEIN — Die Isolation der 189 ist NICHT echt. Es gibt eine Brücke.**
+
+| Liste | Anzahl | Beschreibung |
+|-------|--------|--------------|
+| **E) C-Dateien die D-Dateien importieren (189 → 30)** | 44 | Diese C-Dateien brechen, wenn D für V2 angepasst wird |
+| **F) D-Dateien die C-Dateien importieren (30 → 189)** | 11 | Upstream-D braucht diese C-Dateien zum Funktionieren |
+
+**Schlussfolgerung**: Wenn die 30 D-Dateien für V2 angepasst werden (statt verbatim von upstream zu übernehmen), dann sind **44 der 189 C-Dateien** bei späterem Auto-PR nicht mehr sicher — sie erwarten das unveränderte upstream-D.
+
+---
+
+## Was sich in den 30 D-Dateien geändert hat (thematisch)
+
+### 1. Pre-Call-Fetch-Migration (`dto.py`, `types.ts`, `workflow-configurations.ts`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| `pre_call_fetch_enabled: bool` | `pre_call_fetch_mode: "disabled" \| "always" \| "inbound" \| "outbound"` | V2-Code nutzt noch das alte Boolean-Feld |
+
+### 2. Telephony-Inactive-Status (`db/models.py`, Migration)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| — | `inactive`, `inactive_since`, `inactive_reason` Spalten | Migration muss vor Code laufen; V2-Provider-Code kennt diese Felder nicht |
+
+### 3. Organization-Bootstrap (`auth/depends.py`, `organization_bootstrap.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Kein automatisches Bootstrapping | `ensure_organization_bootstrapped()` bei Auth | Org-Provisioning passiert automatisch; V2 hat eigene Auth-Logik |
+
+### 4. Tracing-Konfiguration (`tracing_config.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| `register_org(org_id, host, pk, sk)` | `register_org(org_id, host, pk, sk, project_id=None)` | Signatur geändert; `normalize_langfuse_host()` hinzugefügt |
+
+### 5. Template-Renderer (`template_renderer.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Einfache String-Substitution | `_resolve_template_value()` mit Filter-Support, URL-Encoding | Mehr Funktionalität; V2-Code könnte inkompatible Variablen erwarten |
+
+### 6. Text-Chat-Session (`text_chat_session_service.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Einfache Session-Verwaltung | `complete_text_chat_session()` mit Artifact-Upload | 190 Zeilen geändert; V2-Text-Chat-Code könnte inkompatibel sein |
+
+### 7. Gemini-Adapter (`gemini_json_schema_adapter.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Nur `DograhGeminiJSONSchemaAdapter` | + `DograhGeminiLiveJSONSchemaAdapter` | Neue Klasse für Gemini Live; V2-Realtime-Code könnte diese erwarten |
+
+### 8. ARQ-Tasks (`arq.py`, `function_names.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Vorherige Task-Liste | Neue Tasks: `text_chat_inactivity`, etc. | Background-Task-Registrierung geändert |
+
+### 9. Router-Änderungen (`routes/auth.py`, `workflow.py`, etc.)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Vorherige Endpunkte | Neue Parameter, Bootstrap-Integration | V2 hat eigene Route-Erweiterungen in main.py |
+
+### 10. Workflow-Configurations-Schema (`schemas/workflow_configurations.py`)
+
+| Alt | Neu | Impact |
+|-----|-----|--------|
+| Vorheriges Schema | `text_chat_inactivity_timeout_seconds`, `external_pbx_lead_headers` | Neue Felder; V2-Code könnte diese nicht validieren |
+
+---
+
+## Liste E: C-Dateien die D-Dateien importieren (44 Dateien)
+
+Diese Dateien aus Liste C sind **nicht mehr safe für Auto-PR**, wenn die 30 D-Dateien für V2 angepasst werden.
+
+### API / Services (12 Dateien)
+
+| C-Datei | Importiert D-Datei | Kopplungsart |
+|---------|-------------------|--------------|
+| `api/db/organization_configuration_client.py` | `db/models.py` | Import |
+| `api/db/telephony_phone_number_client.py` | `db/models.py` | Import |
+| `api/db/workflow_client.py` | `db/models.py` | Import |
+| `api/db/workflow_run_text_session_client.py` | `db/models.py` | Import |
+| `api/schemas/tool.py` | `enums.py` | Import |
+| `api/services/pipecat/realtime/gemini_live.py` | `gemini_json_schema_adapter.py` | Import |
+| `api/services/telephony/ari_manager.py` | `enums.py`, `logging_config.py` | Import |
+| `api/services/tool_management.py` | `db/models.py`, `enums.py` | Import |
+| `api/services/workflow/tools/custom_tool.py` | `template_renderer.py` | Import |
+| `api/services/workflow/tools/transfer_resolver.py` | `template_renderer.py` | Import |
+| `api/tasks/run_integrations.py` | `db/models.py`, `dto.py`, `tracing_config.py`, `function_names.py`, `template_renderer.py` | Import |
+| `api/tasks/webhook_delivery.py` | `db/models.py`, `function_names.py` | Import |
+
+### API / Tests (17 Dateien)
+
+| C-Datei | Importiert D-Datei |
+|---------|-------------------|
+| `api/tests/integrations/test_run_pipeline.py` | `enums.py` |
+| `api/tests/integrations/test_run_pipeline_text_greeting.py` | `enums.py` |
+| `api/tests/test_ai_model_configuration_v2.py` | `ai_model_configuration.py` |
+| `api/tests/test_custom_tools.py` | `enums.py`, `pipecat_engine_custom_tools.py` |
+| `api/tests/test_gemini_json_schema_adapter.py` | `gemini_json_schema_adapter.py` |
+| `api/tests/test_masked_key_rejection.py` | `routes/user.py`, `auth/depends.py`, `ai_model_configuration.py` |
+| `api/tests/test_mcp_tool_route.py` | `routes/tool.py` |
+| `api/tests/test_node_specs.py` | `dto.py` |
+| `api/tests/test_pipecat_engine_end_call.py` | `enums.py`, `dto.py`, `pipecat_engine_custom_tools.py` |
+| `api/tests/test_realtime_feedback_observer.py` | `realtime_feedback_observer.py` |
+| `api/tests/test_run_integrations_webhook.py` | `db/models.py`, `dto.py` |
+| `api/tests/test_text_and_audio_playback.py` | `dto.py`, `pipecat_engine_custom_tools.py` |
+| `api/tests/test_text_chat_session_service.py` | `db/models.py`, `text_chat_session_service.py` |
+| `api/tests/test_user_configuration_validation.py` | `ai_model_configuration.py` |
+| `api/tests/test_workflow_configurations_schema.py` | `workflow_configurations.py` |
+| `api/tests/test_workflow_create_route.py` | `routes/workflow.py`, `auth/depends.py` |
+| `api/tests/test_workflow_versioning.py` | `db/models.py` |
+
+### UI (15 Dateien)
+
+| C-Datei | Importiert D-Datei | Kopplungsart |
+|---------|-------------------|--------------|
+| `ui/src/app/telephony-configurations/[configId]/page.tsx` | `ConfigFormDialog.tsx` | Import |
+| `ui/src/app/telephony-configurations/page.tsx` | `ConfigFormDialog.tsx` | Import |
+| `ui/src/app/tools/[toolUuid]/components/HttpApiToolConfig.tsx` | `http/index.ts` | Import |
+| `ui/src/app/tools/[toolUuid]/components/http-tool-test/helpers.ts` | `http/index.ts` | Type-Import |
+| `ui/src/app/tools/[toolUuid]/components/http-tool-test/HttpToolTestDialog.tsx` | `http/index.ts` | Type-Import |
+| `ui/src/app/tools/[toolUuid]/components/TransferCallToolConfig.tsx` | `http/index.ts` | Import |
+| `ui/src/app/tools/[toolUuid]/page.tsx` | `http/index.ts` | Import |
+| `ui/src/app/workflow/[workflowId]/components/ConfigurationsDialog.tsx` | `workflow-configurations.ts` | Type-Import |
+| `ui/src/app/workflow/[workflowId]/hooks/useWorkflowState.ts` | `flow/types.ts` | Type-Import |
+| `ui/src/app/workflow/[workflowId]/page.tsx` | `flow/types.ts`, `workflow-configurations.ts` | Type-Import |
+| `ui/src/app/workflow/[workflowId]/RenderWorkflow.tsx` | `flow/types.ts`, `workflow-configurations.ts` | Type-Import |
+| `ui/src/app/workflow/[workflowId]/run/[runId]/hooks/useWebSocketRTC.tsx` | `flow/types.ts` | Type-Import |
+| `ui/src/app/workflow/[workflowId]/settings/page.tsx` | `flow/types.ts`, `workflow-configurations.ts` | Type-Import |
+| `ui/src/components/flow/nodes/GenericNode.tsx` | `flow/types.ts` | Type-Import |
+| `ui/src/components/ServiceConfigurationForm.tsx` | `workflow-configurations.ts` | Type-Import |
+
+---
+
+## Liste F: D-Dateien die C-Dateien importieren (11 Dateien)
+
+Die upstream-Versionen dieser D-Dateien **brauchen** die folgenden C-Dateien zum Funktionieren:
+
+| D-Datei | Braucht aus Liste C |
+|---------|---------------------|
+| `api/routes/auth.py` | `services/organization_bootstrap.py` |
+| `api/routes/telephony.py` | `errors/failure.py`, `errors/telephony_errors.py` |
+| `api/routes/tool.py` | `schemas/tool.py`, `services/tool_management.py`, `workflow/tools/custom_tool.py` |
+| `api/routes/user.py` | `errors/failure.py`, `errors/mps.py`, `schemas/widget_texts.py` |
+| `api/routes/workflow.py` | `services/workflow/configuration_policy.py` |
+| `api/schemas/telephony_config.py` | `telephony/providers/cloudonix/config.py` |
+| `api/services/auth/depends.py` | `services/organization_bootstrap.py` |
+| `api/services/pipecat/realtime_feedback_observer.py` | `errors/failure.py` |
+| `api/services/workflow/pipecat_engine_custom_tools.py` | `workflow/tools/custom_tool.py`, `workflow/tools/transfer_resolver.py` |
+| `api/services/workflow/text_chat_session_service.py` | `db/workflow_run_text_session_client.py` |
+| `api/tasks/arq.py` | `tasks/run_integrations.py`, `tasks/text_chat_inactivity.py`, `tasks/webhook_delivery.py` |
+
+---
+
+## Zusammenfassung: Welche der 189 sind wirklich safe?
+
+| Kategorie | Anzahl | Beschreibung |
+|-----------|--------|--------------|
+| **Wirklich safe (C ohne E)** | 145 | Keine Brücke — Docs, CI, reine neue Features, Tests ohne D-Imports |
+| **Brücke vorhanden (Liste E)** | 44 | Importieren D-Dateien — brechen wenn D für V2 angepasst wird |
+
+### Wirklich safe für Auto-PR (145 Dateien)
+
+Die verbleibenden **145 Dateien** aus Liste C, die NICHT in Liste E sind:
+- Alle Dokumentation (docs/)
+- Alle CI/GitHub-Workflows (.github/)
+- Alle SDK-Dateien (sdk/)
+- Alle VSCode-Config (.vscode/)
+- Alle Agents/Skills (.agents/)
+- Neue isolierte Features (Noveum, VICIdial, Cloudonix-Provisioning, etc.)
+- Tests die nur C-Module testen (nicht D)
 
 ---
 
