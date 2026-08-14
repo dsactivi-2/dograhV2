@@ -156,6 +156,7 @@ secrets:
   langfuseSecretKey: ""
   langfusePublicKey: ""
   langfuseHost: ""
+  langfuseProjectId: ""
 
 # -----------------------------------------------------------------------------
 # Web tier (FastAPI + WebSocket signaling)
