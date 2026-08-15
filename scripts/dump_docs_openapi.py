@@ -31,7 +31,7 @@ def main() -> None:
         routes=app.routes,
         servers=app.servers,
     )
-    OUTPUT.write_text(json.dumps(spec, separators=(",", ":")))
+    OUTPUT.write_text(json.dumps(spec, separators=(",", ":"), sort_keys=True))
     print(f"Wrote {len(spec['paths'])} paths to {OUTPUT.relative_to(REPO_ROOT)}")
 
 

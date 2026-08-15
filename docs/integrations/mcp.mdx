@@ -5,16 +5,18 @@ description: "Connect Codex, Claude, and other AI assistants to your Dograh work
 
 ## Overview
 
-Dograh exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Codex, Claude Code, Claude Desktop, and Cursor access your workspace and documentation. Once connected, an assistant can list your agents, fetch agent definitions, and search Dograh docs on your behalf.
+Dograh exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Codex, Claude Code, Claude Desktop, Cursor, and the Grok browser connector access your workspace and documentation. Once connected, an assistant can list your agents, fetch agent definitions, and search Dograh docs on your behalf.
 
 ## Prerequisites
 
-- Credentials (pick one — see [Authentication](#authentication) below):
-  - **Access token (recommended for agents)** — short-lived; no permanent API key required
-  - **API key** — long-lived organization key
 - Your Dograh MCP endpoint:
+  - Self-hosted example: `https://voiceeu.activi.io/api/v1/mcp/`
   - Hosted: `https://app.dograh.com/api/v1/mcp/`
-  - Self-hosted: `<YOUR_BACKEND_URL>/api/v1/mcp/`
+  - Generic: `<YOUR_BACKEND_URL>/api/v1/mcp/`
+- Credentials — pick one:
+  1. **Browser OAuth (recommended for connectors)** — paste the MCP URL only; the client redirects you to Dograh to log in and approve access (`AUTH_PROVIDER=local`)
+  2. **Access token** — short-lived JWT / Stack token in `Authorization: Bearer …`
+  3. **API key** — long-lived `dgr_…` key
 
 The endpoint is also shown in **Platform Settings → MCP Server** inside the Dograh UI.
 
@@ -30,28 +32,49 @@ This is only required for self-signed certificates. If you have set up a [custom
 
 ## Authentication
 
-The MCP endpoint reuses the same auth stack as the REST API. Send credentials on every request (Streamable HTTP and SSE).
+### Option A — Browser OAuth (Authorization Code + PKCE)
 
-| Method | Header | When to use |
-|---|---|---|
-| Access token | `Authorization: Bearer <token>` | Preferred for coding agents — no permanent API key |
-| API key | `X-API-Key: <key>` or `Authorization: Bearer dgr_...` | Scripts, CI, long-lived agent configs |
+Supported when `AUTH_PROVIDER=local` (typical self-hosted / OSS deployments).
 
-### Option A — Access token (no permanent API key)
+This is the flow Grok, Cursor, Claude, and other MCP connectors use when you **only paste the MCP URL** and save — no manual API key:
+
+1. The connector POSTs to the MCP endpoint without credentials.
+2. Dograh responds **HTTP 401** with  
+   `WWW-Authenticate: Bearer FAKESECRET_g3h4i5j6k7l8m9n0o1p2="https://<host>/.well-known/oauth-protected-resource/api/v1/mcp"`.
+3. The client discovers the Authorization Server, registers as a public OAuth client (PKCE), and **opens a browser** to  
+   `https://<host>/api/v1/oauth/authorize`.
+4. You sign in with your Dograh email/password and click **Sign in & Allow**.
+5. The client receives an access token and reconnects to MCP automatically.
+
+#### What to enter in the connector
+
+| Field | Value |
+|---|---|
+| MCP URL | `https://voiceeu.activi.io/api/v1/mcp/` (or your host) |
+| Auth | Leave empty / “OAuth” — do **not** put `/auth/login` as the MCP URL |
+
+Status / discovery (for debugging):
+
+```bash
+curl -s https://voiceeu.activi.io/api/v1/oauth/status | jq
+curl -s https://voiceeu.activi.io/.well-known/oauth-protected-resource/api/v1/mcp | jq
+curl -s https://voiceeu.activi.io/.well-known/oauth-authorization-server/api/v1/oauth | jq
+```
+
+<Note>
+Browser OAuth requires the reverse proxy to route `/.well-known/*` to the **API** (not the UI). Hostinger/Traefik labels in `deploy/hostinger/docker-compose.yaml` include this. Without it, discovery fails and the connector never shows a login page.
+</Note>
+
+### Option B — Access token (manual Bearer header)
 
 #### Self-hosted / local auth (`AUTH_PROVIDER=local`)
 
-Log in (or sign up) against your backend to mint a short-lived JWT, then pass it as a Bearer token:
-
 ```bash
-# Obtain a JWT (valid for OSS_JWT_EXPIRY_HOURS, default 24h)
 curl -s -X POST https://your-dograh-instance/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"your-password"}'
 # → { "token": "<jwt>", "user": { ... } }
 ```
-
-Use the returned `token` in MCP client configs:
 
 ```text
 Authorization: Bearer <jwt>
@@ -59,117 +82,104 @@ Authorization: Bearer <jwt>
 
 #### Hosted / Stack Auth (`AUTH_PROVIDER=stack`)
 
-Pass a valid **Stack Auth access token** in the Authorization header. This is the same short-lived session token the Dograh web app uses for REST calls:
-
 ```text
 Authorization: Bearer <stack_access_token>
 ```
 
-How to obtain a Stack Auth access token:
+Browser OAuth (Option A) is **not** available when `AUTH_PROVIDER=stack` — use a Stack access token or an API key.
 
-1. Sign in to the Dograh dashboard in your browser.
-2. Open DevTools → Application / Network and copy the access token from an authenticated API request’s `Authorization` header, **or**
-3. Use the Stack Auth client SDK / session API for your project to mint a fresh access token programmatically.
+### Option C — API key (legacy / long-lived)
 
-The token is validated server-side via Stack Auth (`/api/v1/users/me`). When it expires, refresh or re-login and update the MCP client header.
-
-<Note>
-Access tokens are short-lived by design. Prefer them over permanent API keys for interactive agent use. Do not commit tokens to source control.
-</Note>
-
-### Option B — API key (legacy / long-lived)
-
-Generate a key at [`/api-keys`](https://app.dograh.com/api-keys) (or `http://localhost:3010/api-keys` for self-hosted). See [API Keys](/configurations/api-keys).
+Generate a key at `/api-keys`. See [API Keys](/configurations/api-keys).
 
 ```text
 X-API-Key: dgr_...
-# or, equivalent:
+# or:
 Authorization: Bearer dgr_...
 ```
 
-API keys start with `dgr_`. When a Bearer value has that prefix, the MCP server treats it as an API key (not a JWT/Stack token) so existing clients keep working.
+API keys start with `dgr_`. When a Bearer value has that prefix, the MCP server treats it as an API key.
 
 ---
 
+## Grok browser connector
+
+1. Open the Grok agent MCP / connectors settings.
+2. Add server URL: `https://voiceeu.activi.io/api/v1/mcp/`  
+   (use your own host if different — **must** end with `/api/v1/mcp/`, not `/auth/login`).
+3. Save — Grok should open a browser (or embedded window) to Dograh’s OAuth page.
+4. Log in with your Dograh account and click **Sign in & Allow**.
+5. Return to Grok; the connector should show **Connected**.
+
+If no login appears: check `GET /api/v1/oauth/status` (`enabled: true`) and that `/.well-known/oauth-protected-resource/api/v1/mcp` returns JSON (not an HTML login page).
+
 ## Claude Code
 
-### With an access token
+### OAuth (local auth deployments)
+
+Paste only the URL; Claude Code will run the OAuth browser flow when the server challenges with 401:
 
 ```bash
-claude mcp add --transport http dograh https://app.dograh.com/api/v1/mcp/ \
+claude mcp add --transport http dograh https://voiceeu.activi.io/api/v1/mcp/
+```
+
+### With an access token or API key
+
+```bash
+claude mcp add --transport http dograh https://voiceeu.activi.io/api/v1/mcp/ \
   --header "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
 
-### With an API key
-
-```bash
-claude mcp add --transport http dograh https://app.dograh.com/api/v1/mcp/ \
+# or
+claude mcp add --transport http dograh https://voiceeu.activi.io/api/v1/mcp/ \
   --header "X-API-Key: YOUR_API_KEY"
-```
-
-Replace `YOUR_ACCESS_TOKEN` / `YOUR_API_KEY` with the credential you obtained. For self-hosted deployments, swap the URL for your backend.
-
-Verify the server is connected:
-
-```bash
-claude mcp list
 ```
 
 ## Codex
 
-Open Codex's config file (`~/.codex/config.toml`) and add a `dograh` MCP server.
-
-### With an access token
-
 ```toml
 [mcp_servers.dograh]
-url = "https://app.dograh.com/api/v1/mcp/"
-http_headers = { "Authorization" = "Bearer YOUR_ACCESS_TOKEN" }
-```
-
-### With an API key
-
-```toml
-[mcp_servers.dograh]
-url = "https://app.dograh.com/api/v1/mcp/"
-http_headers = { "X-API-Key" = "YOUR_API_KEY" }
-```
-
-If you prefer to keep the credential out of `config.toml`, store it in an environment variable instead:
-
-```toml
-[mcp_servers.dograh]
-url = "https://app.dograh.com/api/v1/mcp/"
-env_http_headers = { "Authorization" = "DOGRAH_ACCESS_TOKEN" }
-# or: env_http_headers = { "X-API-Key" = "DOGRAH_API_KEY" }
-```
-
-Then set the variable before starting Codex:
-
-```bash
-export DOGRAH_ACCESS_TOKEN="YOUR_ACCESS_TOKEN"
-# or: export DOGRAH_API_KEY="YOUR_API_KEY"
-codex
-```
-
-Verify the server is registered:
-
-```bash
-codex mcp list
-codex mcp get dograh
+url = "https://voiceeu.activi.io/api/v1/mcp/"
+# OAuth: omit headers and let Codex run the browser flow (local auth).
+# Or set a token/key:
+# http_headers = { "Authorization" = "Bearer YOUR_ACCESS_TOKEN" }
+# http_headers = { "X-API-Key" = "YOUR_API_KEY" }
 ```
 
 ## Claude Desktop
 
-Open Claude Desktop's config file (`claude_desktop_config.json`) and add the `dograh` entry under `mcpServers`:
+```json
+{
+  "mcpServers": {
+    "dograh": {
+      "url": "https://voiceeu.activi.io/api/v1/mcp/"
+    }
+  }
+}
+```
 
-### With an access token
+For header-based auth, add a `headers` object with `Authorization` or `X-API-Key`.
+
+## Cursor
+
+`~/.cursor/mcp.json` or project `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "dograh": {
-      "url": "https://app.dograh.com/api/v1/mcp/",
+      "url": "https://voiceeu.activi.io/api/v1/mcp/"
+    }
+  }
+}
+```
+
+Cursor should open the OAuth login when the server returns 401. If your Cursor build does not support MCP OAuth yet, set headers manually:
+
+```json
+{
+  "mcpServers": {
+    "dograh": {
+      "url": "https://voiceeu.activi.io/api/v1/mcp/",
       "headers": {
         "Authorization": "Bearer YOUR_ACCESS_TOKEN"
       }
@@ -177,85 +187,23 @@ Open Claude Desktop's config file (`claude_desktop_config.json`) and add the `do
   }
 }
 ```
-
-### With an API key
-
-```json
-{
-  "mcpServers": {
-    "dograh": {
-      "url": "https://app.dograh.com/api/v1/mcp/",
-      "headers": {
-        "X-API-Key": "YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Desktop after saving. The Dograh tools should appear in the tool picker.
-
-## Cursor and other MCP clients
-
-Any MCP client that supports Streamable HTTP transport can connect with the same URL and headers.
-
-**Cursor** (`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "dograh": {
-      "url": "https://app.dograh.com/api/v1/mcp/",
-      "headers": {
-        "Authorization": "Bearer YOUR_ACCESS_TOKEN"
-      }
-    }
-  }
-}
-```
-
-**Generic** (any Streamable HTTP client):
-
-| Field | Value |
-|---|---|
-| Transport | Streamable HTTP |
-| URL | `https://app.dograh.com/api/v1/mcp/` (or your self-hosted URL) |
-| Auth header | `Authorization: Bearer <token>` **or** `X-API-Key: dgr_...` |
 
 ## Example prompts
 
-Once the MCP server is connected, you can drive Dograh from your coding agent in plain English. A few prompts to try:
-
-**Explore your workspace**
+Once the MCP server is connected:
 
 - "List my agents in Dograh."
 - "Show me the definition of the agent called *Lead Qualifier*."
-- "Which credentials and tools are configured in my Dograh workspace?"
-- "List the recordings from my most recent agent."
-
-**Edit an agent**
-
-- "In my *Lead Qualifier* agent, add a new agent node after the greeting that asks the caller for their budget, then routes to the existing qualification node."
-- "Add an end-call node to *Support Bot* that triggers when the user says they are done, with a polite goodbye prompt."
-- "Rename the *intro* node in *Lead Qualifier* to *greeting* and update any edges that reference it."
-- "Change the LLM model on all agent nodes in *Support Bot* to `gpt-4o-mini`."
-
-**Learn the platform**
-
 - "Search the Dograh docs for how to configure a TURN server."
-- "What node types does Dograh support, and what fields does a `knowledge_base` node take?"
-- "How do I deploy Dograh on a custom domain with HTTPS?"
 
 <Note>
 Agent edits are saved as a new **draft** version — your published agent keeps serving calls until you explicitly publish the draft from the Dograh UI.
 </Note>
 
-<Note>
-Credentials control which workspace the assistant sees. Treat access tokens and API keys like any other secret — do not commit them to source control or paste them into shared chats.
-</Note>
-
 ## Migration notes
 
-- **Existing API-key MCP configs keep working** with no changes (`X-API-Key` and `Authorization: Bearer dgr_...`).
-- To drop permanent API keys, switch the header to `Authorization: Bearer <access_token>` as described above.
-- No new environment variables are required for this auth path. Token lifetime for local JWTs is still controlled by `OSS_JWT_EXPIRY_HOURS`; Stack Auth token lifetime is controlled by your Stack Auth project settings.
+- **Existing API-key MCP configs keep working** (`X-API-Key` / `Bearer dgr_…`).
+- **Browser OAuth is new** for `AUTH_PROVIDER=local` — no permanent key required for connectors.
+- Reverse proxy must route `/.well-known` to the API (Hostinger compose ships this).
+- Access tokens from OAuth are the same local JWTs as `/api/v1/auth/login` (lifetime: `OSS_JWT_EXPIRY_HOURS`).
+- No new required environment variables; OAuth uses `BACKEND_API_ENDPOINT` / `PUBLIC_BASE_URL` for issuer URLs.

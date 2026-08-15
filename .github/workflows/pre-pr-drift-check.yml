@@ -77,19 +77,56 @@ jobs:
           ENABLE_AWS_S3: "false"
           MINIO_PUBLIC_ENDPOINT: http://localhost:9000
           DEPLOYMENT_MODE: oss
-        run: python -u -m scripts.dump_docs_openapi
+        run: |
+          cd /tmp
+          PYTHONPATH="$GITHUB_WORKSPACE" python -u -m scripts.dump_docs_openapi
 
       - name: Check for OpenAPI drift
         run: |
-          if ! git diff --exit-code docs/api-reference/openapi.json; then
-            echo "::error::docs/api-reference/openapi.json is out of sync with the FastAPI app."
-            echo "Run 'python -m scripts.dump_docs_openapi' locally (with api/.env sourced) and commit the result."
-            exit 1
-          fi
-          echo "OpenAPI spec is in sync."
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          path = Path("docs/api-reference/openapi.json")
+          committed = subprocess.check_output(
+              ["git", "show", f"HEAD:{path.as_posix()}"], text=True
+          )
+          generated = path.read_text()
+
+          committed_spec = json.loads(committed)
+          generated_spec = json.loads(generated)
+
+          def differences(left, right, location="$"):
+              if type(left) is not type(right):
+                  yield location, left, right
+              elif isinstance(left, dict):
+                  for key in sorted(set(left) | set(right)):
+                      if key not in left or key not in right:
+                          yield f"{location}.{key}", left.get(key, "<missing>"), right.get(key, "<missing>")
+                      else:
+                          yield from differences(left[key], right[key], f"{location}.{key}")
+              elif isinstance(left, list):
+                  for index, (before, after) in enumerate(zip(left, right)):
+                      yield from differences(before, after, f"{location}[{index}]")
+                  if len(left) != len(right):
+                      yield f"{location}.length", len(left), len(right)
+              elif left != right:
+                  yield location, left, right
+
+          found = list(differences(committed_spec, generated_spec))
+          if found:
+              print("::error::docs/api-reference/openapi.json is semantically out of sync with the FastAPI app.")
+              for location, before, after in found[:20]:
+                  print(f"DIFF {location}: committed={before!r} generated={after!r}")
+              print("Run 'python -m scripts.dump_docs_openapi' locally (with api/.env sourced) and commit the result.")
+              raise SystemExit(1)
+
+          print("OpenAPI spec is semantically in sync.")
+          PY
 
       - name: Send Slack notification - Failure
-        if: failure()
+        if: ${{ failure() && env.SLACK_WEBHOOK_URL != '' }}
         uses: slackapi/slack-github-action@v1.26.0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

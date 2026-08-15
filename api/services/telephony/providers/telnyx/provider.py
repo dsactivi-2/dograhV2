@@ -26,6 +26,7 @@ TELNYX_PUBLIC_KEY_BYTES = 32
 TELNYX_SIGNATURE_BYTES = 64
 
 from api.enums import TelephonyCallStatus, WorkflowRunMode
+from api.services.telephony import ws_auth
 from api.services.telephony.base import (
     CallInitiationResult,
     NormalizedInboundData,
@@ -102,9 +103,8 @@ class TelnyxProvider(TelephonyProvider):
         # Build the WebSocket stream URL for inline audio streaming
         workflow_id = kwargs.get("workflow_id")
         organization_id = kwargs.get("organization_id")
-        stream_url = (
-            f"{wss_backend_endpoint}/api/v1/telephony/ws"
-            f"/{workflow_id}/{organization_id}/{workflow_run_id}"
+        stream_url = ws_auth.build_media_ws_url(
+            wss_backend_endpoint, workflow_id, organization_id, workflow_run_id
         )
 
         # Build the webhook URL for status callbacks

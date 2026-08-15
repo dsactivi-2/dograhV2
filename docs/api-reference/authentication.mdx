@@ -48,8 +48,22 @@ curl https://your-dograh-instance/api/v1/workflow/fetch \
 |---|---|
 | Self-hosted (`AUTH_PROVIDER=local`) | `POST /api/v1/auth/login` or `/auth/signup` — response includes a JWT |
 | Hosted (`AUTH_PROVIDER=stack`) | Stack Auth session access token (same token the web app uses) |
+| MCP browser OAuth (`AUTH_PROVIDER=local`) | Authorization Code + PKCE via `/api/v1/oauth/*` — connectors open a login page |
 
 This is the preferred path for MCP clients and interactive agents that should not store long-lived API keys. See [MCP Server](/integrations/mcp#authentication).
+
+### MCP OAuth endpoints (local auth)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /.well-known/oauth-protected-resource/api/v1/mcp` | Protected resource metadata (RFC 9728) |
+| `GET /.well-known/oauth-authorization-server/api/v1/oauth` | Authorization server metadata (RFC 8414) |
+| `POST /api/v1/oauth/register` | Dynamic client registration |
+| `GET/POST /api/v1/oauth/authorize` | Browser login + consent |
+| `POST /api/v1/oauth/token` | Code → access token (PKCE) |
+| `GET /api/v1/oauth/status` | Debug whether OAuth is enabled |
+
+Unauthenticated MCP requests return `401` with a `WWW-Authenticate` header so connectors can start the browser flow.
 
 ---
 

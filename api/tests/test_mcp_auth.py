@@ -165,7 +165,9 @@ async def test_authenticate_mcp_request_propagates_get_user_errors():
         ),
         patch(
             "api.mcp_server.auth.get_user",
-            AsyncMock(side_effect=HTTPException(status_code=401, detail="Unauthorized")),
+            AsyncMock(
+                side_effect=HTTPException(status_code=401, detail="Unauthorized")
+            ),
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
