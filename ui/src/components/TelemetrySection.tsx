@@ -20,7 +20,6 @@ export function TelemetrySection() {
     host: "",
     public_key: "",
     secret_key: "",
-    project_id: "",
     configured: false,
   });
   const [loading, setLoading] = useState(true);
@@ -57,7 +56,6 @@ export function TelemetrySection() {
           host: credentials.host ?? "",
           public_key: credentials.public_key ?? "",
           secret_key: credentials.secret_key ?? "",
-          project_id: credentials.project_id ?? "",
         },
       });
       if (error) {
@@ -76,13 +74,7 @@ export function TelemetrySection() {
     setSaving(true);
     try {
       await deleteLangfuseCredentialsApiV1OrganizationsLangfuseCredentialsDelete();
-      setCredentials({
-        host: "",
-        public_key: "",
-        secret_key: "",
-        project_id: "",
-        configured: false,
-      });
+      setCredentials({ host: "", public_key: "", secret_key: "", configured: false });
       toast.success("Telemetry credentials removed");
     } catch {
       toast.error("Failed to remove telemetry credentials");
@@ -130,20 +122,6 @@ export function TelemetrySection() {
           onChange={(e) => setCredentials({ ...credentials, secret_key: e.target.value })}
           required
         />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="langfuse-project-id">Project ID</Label>
-        <Input
-          id="langfuse-project-id"
-          placeholder="cm..."
-          value={credentials.project_id}
-          onChange={(e) => setCredentials({ ...credentials, project_id: e.target.value })}
-          required
-        />
-        <p className="text-xs text-muted-foreground">
-          Found in your Langfuse URL: /project/&lt;project-id&gt;/traces. Required to
-          build links to your traces.
-        </p>
       </div>
       <div className="flex gap-2">
         <Button type="submit" disabled={saving}>

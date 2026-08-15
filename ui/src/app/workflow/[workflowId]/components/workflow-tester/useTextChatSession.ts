@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
     appendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPost,
     createTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPost,
-    endTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdEndPost,
     rewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPost,
 } from "@/client/sdk.gen";
 import { conversationItemsFromTextChatTurns } from "@/components/workflow/conversation/adapters/fromTextChatTurns";
@@ -43,7 +42,6 @@ export function useTextChatSession({
     const [draft, setDraft] = useState("");
     const [creatingSession, setCreatingSession] = useState(false);
     const [sendingMessage, setSendingMessage] = useState(false);
-    const [endingSession, setEndingSession] = useState(false);
     const [editingTurnId, setEditingTurnId] = useState<string | null>(null);
     const [activeTurnAction, setActiveTurnAction] = useState<TurnActionState | null>(null);
     const lastNotifiedNodeTransitionIdRef = useRef<string | null>(null);
@@ -131,7 +129,7 @@ export function useTextChatSession({
 
     const submitMessage = useCallback(async (messageText: string, replayOptions?: TurnActionState) => {
         const trimmedText = messageText.trim();
-        if (!session || session.is_completed || !trimmedText || disabled || endingSession) return;
+        if (!session || !trimmedText || disabled) return;
 
         setSendingMessage(true);
         if (replayOptions) {
@@ -179,32 +177,7 @@ export function useTextChatSession({
             setSendingMessage(false);
             setActiveTurnAction(null);
         }
-    }, [disabled, endingSession, session, workflowId]);
-
-    const endSession = useCallback(async () => {
-        if (!session || session.is_completed || sendingMessage || endingSession) return;
-
-        setEndingSession(true);
-        try {
-            const response = await endTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdEndPost({
-                path: { workflow_id: workflowId, run_id: session.workflow_run_id },
-                body: { expected_revision: session.revision },
-            });
-
-            if (response.error || !response.data) {
-                throw new Error(extractSdkErrorMessage(response.error, "Failed to end chat session"));
-            }
-
-            setSession(toTextChatSession(response.data));
-            setDraft("");
-            setEditingTurnId(null);
-            toast.success("Chat ended");
-        } catch (error) {
-            toast.error(getErrorMessage(error));
-        } finally {
-            setEndingSession(false);
-        }
-    }, [endingSession, sendingMessage, session, workflowId]);
+    }, [disabled, session, workflowId]);
 
     const rewindTurn = useCallback(async (turn: TextChatTurn) => {
         if (!turn.user_message) return;
@@ -247,10 +220,9 @@ export function useTextChatSession({
         editingTurnId,
         creatingSession,
         sendingMessage,
-        endingSession,
         activeTurnAction,
         composerId,
-        inputDisabled: disabled || !session || session.is_completed || endingSession,
+        inputDisabled: disabled || !session,
         conversationItems,
         setDraft,
         startSession: () => setStarted(true),
@@ -258,6 +230,5 @@ export function useTextChatSession({
         startEditingTurn,
         cancelEditingTurn,
         submitComposer,
-        endSession,
     };
 }

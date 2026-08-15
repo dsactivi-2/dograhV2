@@ -9,7 +9,6 @@ interface ChatComposerProps {
     composerId: string;
     draft: string;
     ready: boolean;
-    ended: boolean;
     editing: boolean;
     sendingMessage: boolean;
     inputDisabled: boolean;
@@ -22,7 +21,6 @@ export function ChatComposer({
     composerId,
     draft,
     ready,
-    ended,
     editing,
     sendingMessage,
     inputDisabled,
@@ -50,7 +48,7 @@ export function ChatComposer({
                     id={composerId}
                     value={draft}
                     onChange={(event) => onDraftChange(event.target.value)}
-                    placeholder={ended ? "Conversation ended" : ready ? (editing ? "Edit and rerun this message..." : "Send a message...") : "Preparing chat..."}
+                    placeholder={ready ? (editing ? "Edit and rerun this message..." : "Send a message...") : "Preparing chat..."}
                     rows={1}
                     className="min-h-11! resize-none pr-20 text-sm leading-6"
                     disabled={inputDisabled}
