@@ -1,8 +1,431 @@
 # Delta-Vergleich: dograhV2 vs. dograhEU_last
 
 **Erstellt:** 2026-08-14  
-**Aktualisiert:** 2026-08-14 (Kategorie-1-Verifizierung + Abhängigkeitsanalyse + Brückenanalyse)  
+**Aktualisiert:** 2026-08-15 (Themen-Plan für Rest hinzugefügt)  
 **Vergleich:** `dsactivi-2/dograhV2` (main) ↔ `dsactivi-2/dograhEU_last` (main)
+
+---
+
+## Rest / Themen-Plan: Die 30 + 44 + 70 (2026-08-15)
+
+Ein anderer Agent wendet bereits die **145 wirklich sicheren Dateien** auf einem separaten Branch an. Hier folgt der Plan für den Rest:
+
+| Bucket | Anzahl | Beschreibung |
+|--------|--------|--------------|
+| **30 Liste D** | 30 | Gekoppelte API/Schema-Änderungen |
+| **44 Liste E** | 44 | C-Dateien die D importieren (kommen mit D-Thema) |
+| **70 Overlap** | 70 | Beide Seiten geändert seit Merge-Base |
+
+---
+
+### Thema 1: Pre-Call-Fetch (bool → enum)
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| `pre_call_fetch_enabled: bool = False` | `pre_call_fetch_mode: PreCallFetchMode = None` |
+| Einfaches Boolean-Feld | Enum: `disabled`, `always`, `inbound`, `outbound` |
+| — | Model-Validator migriert legacy `enabled=True` → `mode=always` |
+
+**Geänderte D-Dateien**: `dto.py`, `ui/src/components/flow/types.ts`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/services/pipecat/run_pipeline.py` (Overlap) | `start_node.pre_call_fetch_enabled` | Attribut-Zugriff |
+| `api/services/workflow/workflow_graph.py` (Overlap) | `self.pre_call_fetch_enabled = getattr(data, "pre_call_fetch_enabled", False)` | Attribut-Zugriff |
+| `api/services/pipecat/pre_call_fetch.py` (Overlap) | Verwendet `pre_call_fetch_enabled` | Logik |
+| `api/services/pipecat/event_handlers.py` (Overlap) | Trace-Logging | Logik |
+
+#### Erforderliche Brücken-Dateien (Liste E für dieses Thema)
+
+- `api/tests/test_node_specs.py` — testet `pre_call_fetch_enabled`
+- `api/tests/test_pipecat_engine_end_call.py` — importiert `dto.py`
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | `pre_call_fetch_enabled` → `pre_call_fetch_mode != disabled` | Mittel — alle 4 Stellen ändern |
+| **b) Shim/Compat** | Model-Validator behält `enabled` als alias für `mode=always` | Niedrig — upstream hat das bereits |
+| **c) Skip** | Dieses Feature nicht übernehmen | Kein Risiko, aber kein Feature |
+
+**Empfehlung**: **Option b) ist am sichersten** — Upstream hat bereits einen Model-Validator der `enabled=True` → `mode=always` migriert. V2-Code funktioniert weiter.
+
+---
+
+### Thema 2: Telephony Inactive-Status
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| — | `inactive: bool = False` Spalte |
+| — | `inactive_since: DateTime` Spalte |
+| — | `inactive_reason: str` Spalte |
+| — | ARI-Manager deaktiviert Config bei Fehlern |
+
+**Geänderte D-Dateien**: `db/models.py`, `db/telephony_configuration_client.py`, Migration `c7a1e4f93b26`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/routes/organization.py` (Overlap) | `TelephonyConfigurationModel` Queries | DB-Schema |
+| `api/services/telephony/factory.py` (Overlap) | Config-Lookup | DB-Schema |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/db/telephony_phone_number_client.py` — importiert `db/models.py`
+- `api/services/telephony/ari_manager.py` — nutzt neue `inactive`-Logik
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Migration ausführen, V2-Code ignoriert neue Spalten | Niedrig — neue Spalten sind nullable/default |
+| **b) Shim/Compat** | Nicht sinnvoll bei DB-Schema | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko, aber kein Auto-Deaktivierung |
+
+**Empfehlung**: **Option a) ist am sichersten** — Migration fügt nur neue Spalten mit Defaults hinzu. V2-Code muss nichts ändern, funktioniert weiter.
+
+---
+
+### Thema 3: Organization Bootstrap
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| Kein Auto-Bootstrap | `ensure_organization_bootstrapped()` bei Auth |
+| — | Neuer Enum `ORGANIZATION_BOOTSTRAP` |
+| — | SIP-Endpoints werden automatisch provisioniert |
+
+**Geänderte D-Dateien**: `auth/depends.py`, `enums.py`, `routes/auth.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| Keine direkte V2-Nutzung | — | — |
+
+V2 verwendet `organization_bootstrap` nicht. Die Auth-Änderungen sind unabhängig.
+
+#### Erforderliche Brücken-Dateien
+
+- `api/services/organization_bootstrap.py` — wird von `auth/depends.py` importiert
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Nicht nötig — V2 nutzt das nicht | — |
+| **b) Shim/Compat** | Nicht nötig | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko |
+
+**Empfehlung**: **Option c) ist am sichersten** — V2 hat eigene Auth-Logik, Bootstrap-Feature ist optional.
+
+---
+
+### Thema 4: Tracing-Config (register_org 4→5 args)
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| `register_org(org_id, host, pk, sk)` | `register_org(org_id, host, pk, sk, project_id=None)` |
+| — | `normalize_langfuse_host()` hinzugefügt |
+| — | `get_org_project_id()` hinzugefügt |
+
+**Geänderte D-Dateien**: `tracing_config.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/app.py` (Overlap) | `ensure_tracing()` | Import |
+| `api/services/pipecat/event_handlers.py` (Overlap) | `get_trace_url()` | Import |
+| `api/services/pipecat/run_pipeline.py` (Overlap) | Tracing-Setup | Import |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/tasks/run_integrations.py` — ruft `register_org_langfuse_credentials()` auf
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Nicht nötig — neuer Parameter ist optional (default `None`) | Sehr niedrig |
+| **b) Shim/Compat** | Nicht nötig — abwärtskompatibel | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko |
+
+**Empfehlung**: **Option a) ist am sichersten** — Signatur ist abwärtskompatibel (neuer Parameter hat Default).
+
+---
+
+### Thema 5: Template-Renderer Filter
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| Einfache `{{var}}` Substitution | `_resolve_template_value()` mit Filter-Support |
+| — | `{{var \| default}}` Syntax |
+| — | URL-Encoding-Support |
+| — | Hostname-Template-Variablen |
+
+**Geänderte D-Dateien**: `template_renderer.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/services/pipecat/event_handlers.py` (Overlap) | `render_template()` | Import |
+| `api/services/workflow/pipecat_engine.py` (Overlap) | `render_template()` | Import |
+| `api/services/workflow/qa/analysis.py` (Overlap) | `render_template()` | Import |
+| `api/services/workflow/workflow_graph.py` (Overlap) | `render_template()` | Import |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/services/workflow/tools/custom_tool.py` — importiert `template_renderer`
+- `api/services/workflow/tools/transfer_resolver.py` — importiert `template_renderer`
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Nicht nötig — API ist abwärtskompatibel | Sehr niedrig |
+| **b) Shim/Compat** | Nicht nötig — nur Erweiterungen | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko, aber keine Filter |
+
+**Empfehlung**: **Option a) ist am sichersten** — Nur Erweiterungen, keine Breaking Changes.
+
+---
+
+### Thema 6: Text-Chat-Session Completion
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| Einfache Session-Verwaltung | `complete_text_chat_session()` mit Artifact-Upload |
+| — | Atomare Revision + Workflow-Run-Completion |
+| — | Inaktivitäts-Timeout-Task |
+
+**Geänderte D-Dateien**: `text_chat_session_service.py`, `tasks/arq.py`, `tasks/function_names.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/routes/workflow_text_chat.py` (Overlap) | Session-Handling | API |
+| `api/tests/test_workflow_text_chat.py` (Overlap) | Tests | API |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/db/workflow_run_text_session_client.py` — wird importiert
+- `api/tasks/text_chat_inactivity.py` — neuer Task
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | `complete_text_chat_session()` übernehmen | Mittel — 190 Zeilen geändert |
+| **b) Shim/Compat** | Alte API beibehalten, neue intern nutzen | Mittel — Doppelte Logik |
+| **c) Skip** | Feature nicht übernehmen | Niedrig, aber kein Inaktivitäts-Timeout |
+
+**Empfehlung**: **Option c) ist am sichersten für jetzt** — Feature ist komplex, V2 hat eigene Text-Chat-Logik.
+
+---
+
+### Thema 7: Gemini Live Adapter
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| Nur `DograhGeminiJSONSchemaAdapter` | + `DograhGeminiLiveJSONSchemaAdapter` |
+| — | Gemini Live Tool-Call-Support |
+
+**Geänderte D-Dateien**: `gemini_json_schema_adapter.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/services/pipecat/service_factory.py` (Overlap) | Adapter-Import | Import |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/services/pipecat/realtime/gemini_live.py` — importiert neuen Adapter
+- `api/tests/test_gemini_json_schema_adapter.py` — testet Adapter
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Neuen Adapter in `service_factory.py` nutzen | Niedrig — nur Import hinzufügen |
+| **b) Shim/Compat** | Nicht nötig — additive Änderung | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko, aber kein Gemini Live |
+
+**Empfehlung**: **Option a) ist am sichersten** — Nur eine neue Klasse, keine Breaking Changes.
+
+---
+
+### Thema 8: Workflow-Configurations Schema
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| — | `text_chat_inactivity_timeout_seconds: int` |
+| — | `external_pbx_lead_headers: list[str]` |
+| — | `ExternalPBXLeadHeader` Typ |
+
+**Geänderte D-Dateien**: `schemas/workflow_configurations.py`, `ui/src/types/workflow-configurations.ts`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| `api/services/pipecat/run_pipeline.py` (Overlap) | Schema-Import | Type |
+| `api/services/quota_service.py` (Overlap) | Config-Validierung | Type |
+| `api/services/workflow/qa/llm_config.py` (Overlap) | Config-Zugriff | Type |
+| `api/services/workflow/text_chat_runner.py` (Overlap) | Config-Zugriff | Type |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/tests/test_workflow_configurations_schema.py` — testet Schema
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Nicht nötig — neue Felder haben Defaults | Sehr niedrig |
+| **b) Shim/Compat** | Nicht nötig — additive Änderung | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko, aber keine neuen Config-Felder |
+
+**Empfehlung**: **Option a) ist am sichersten** — Nur neue Felder mit Defaults, bestehender Code funktioniert.
+
+---
+
+### Thema 9: Realtime-Feedback Failure-Logging
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| Einfaches Error-Logging | `classify_exception()`, `classify_message()`, `log_failure()` |
+| — | Strukturierte Failure-Klassifizierung |
+
+**Geänderte D-Dateien**: `realtime_feedback_observer.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| Keine direkte V2-Nutzung | — | — |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/errors/failure.py` — wird importiert
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Nicht nötig — V2 nutzt das nicht direkt | — |
+| **b) Shim/Compat** | Nicht nötig — additive Änderung | — |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko |
+
+**Empfehlung**: **Option a) ist am sichersten** — Nur interne Verbesserung.
+
+---
+
+### Thema 10: Custom-Tools Transfer-Logik
+
+#### Was ändert sich
+
+| Alt (V2) | Neu (Upstream) |
+|----------|----------------|
+| `perform_final_variable_extraction()` | `flush_variable_extraction()` |
+| Alte Timeout-Berechnung | Neue Konstanten für Transfer-Phasen |
+| Context-Mapping nur mit external_pbx | Context-Mapping immer erlaubt |
+
+**Geänderte D-Dateien**: `pipecat_engine_custom_tools.py`
+
+#### V2-Dateien die brechen würden
+
+| Datei | Symbol | Break-Art |
+|-------|--------|-----------|
+| Keine direkte V2-Nutzung außerhalb D | — | — |
+
+#### Erforderliche Brücken-Dateien
+
+- `api/services/workflow/tools/custom_tool.py` — wird importiert
+- `api/services/workflow/tools/transfer_resolver.py` — wird importiert
+
+#### Lösungsoptionen
+
+| Option | Beschreibung | Risiko |
+|--------|--------------|--------|
+| **a) V2-Caller anpassen** | Method-Rename `perform_final_*` → `flush_*` | Niedrig |
+| **b) Shim/Compat** | Beide Method-Namen beibehalten | Niedrig |
+| **c) Skip** | Feature nicht übernehmen | Kein Risiko |
+
+**Empfehlung**: **Option b) ist am sichersten** — Alias für alten Method-Namen.
+
+---
+
+## Die 70 Overlap-Dateien und D-Themen
+
+Von den 70 Overlap-Dateien berühren **18 Dateien** mindestens ein D-Thema:
+
+| Overlap-Datei | Betroffene D-Themen |
+|---------------|---------------------|
+| `api/app.py` | tracing |
+| `api/routes/organization.py` | telephony_inactive |
+| `api/routes/public_embed.py` | telephony_inactive |
+| `api/routes/workflow_text_chat.py` | text_chat |
+| `api/services/pipecat/event_handlers.py` | pre_call_fetch, tracing, template_renderer |
+| `api/services/pipecat/pre_call_fetch.py` | pre_call_fetch |
+| `api/services/pipecat/run_pipeline.py` | pre_call_fetch, tracing, workflow_config |
+| `api/services/pipecat/service_factory.py` | gemini_adapter |
+| `api/services/quota_service.py` | workflow_config |
+| `api/services/telephony/factory.py` | telephony_inactive |
+| `api/services/workflow/pipecat_engine.py` | template_renderer |
+| `api/services/workflow/qa/analysis.py` | template_renderer |
+| `api/services/workflow/qa/llm_config.py` | workflow_config |
+| `api/services/workflow/text_chat_runner.py` | tracing, workflow_config |
+| `api/services/workflow/workflow_graph.py` | pre_call_fetch, template_renderer |
+| `api/tests/test_pre_call_fetch.py` | pre_call_fetch |
+| `api/tests/test_workflow_text_chat.py` | text_chat |
+| `sdk/python/src/dograh_sdk/_generated_models.py` | workflow_config |
+
+**Hinweis**: Diese 18 Overlap-Dateien werden NICHT durch das Übernehmen der D-Dateien gelöst. Sie benötigen ein **3-Way-Review** (Merge-Base / V2 / EU_last):
+- V2-Verhalten beibehalten, außer der upstream-Hunk ist unabhängig
+- Das Review beginnt hier noch nicht — nur die Anzahl und Themen-Zuordnung dokumentiert.
+
+Die verbleibenden **52 Overlap-Dateien** berühren keine D-Themen direkt.
+
+---
+
+## Zusammenfassung: Empfohlene Reihenfolge
+
+| Priorität | Thema | Empfehlung | Risiko |
+|-----------|-------|------------|--------|
+| 1 | Workflow-Schema | a) Übernehmen | Sehr niedrig |
+| 2 | Template-Renderer | a) Übernehmen | Sehr niedrig |
+| 3 | Tracing-Config | a) Übernehmen | Sehr niedrig |
+| 4 | Gemini-Adapter | a) Übernehmen | Niedrig |
+| 5 | Telephony-Inactive | a) Migration + Übernehmen | Niedrig |
+| 6 | Realtime-Feedback | a) Übernehmen | Niedrig |
+| 7 | Pre-Call-Fetch | b) Shim nutzen | Mittel |
+| 8 | Custom-Tools | b) Method-Alias | Niedrig |
+| 9 | Org-Bootstrap | c) Skip | Kein Risiko |
+| 10 | Text-Chat-Session | c) Skip für jetzt | Kein Risiko |
 
 ---
 
