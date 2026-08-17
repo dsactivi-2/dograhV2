@@ -46,12 +46,13 @@ async def load_telephony_config_by_id(
     if not organization_id:
         raise ValueError("organization_id is required")
 
+    # active_only=True by default — inactive (parked) configs are not usable
     row = await db_client.get_telephony_configuration_for_org(
         resolved_cfg_id, organization_id
     )
     if not row:
         raise ValueError(
-            f"Telephony configuration {resolved_cfg_id} not found "
+            f"Telephony configuration {resolved_cfg_id} not found or inactive "
             f"for organization {organization_id}"
         )
     return await _normalize_with_phone_numbers(row)
@@ -62,11 +63,12 @@ async def load_default_telephony_config(organization_id: int) -> Dict[str, Any]:
     if not organization_id:
         raise ValueError("organization_id is required")
 
+    # active_only=True by default — inactive (parked) configs are not usable
     row = await db_client.get_default_telephony_configuration(organization_id)
     if not row:
         raise ValueError(
-            f"No default telephony configuration found for organization "
-            f"{organization_id}"
+            f"No default telephony configuration found or default is inactive "
+            f"for organization {organization_id}"
         )
     return await _normalize_with_phone_numbers(row)
 
@@ -84,6 +86,7 @@ async def find_telephony_config_for_inbound(
     if not spec:
         return None
 
+    # active_only=True by default — inbound calls should not route to parked configs
     candidates = await db_client.list_telephony_configurations_by_provider(
         organization_id, provider_name
     )

@@ -5,6 +5,7 @@ Each row represents one provider account that an organization has connected
 ``OrganizationConfiguration(TELEPHONY_CONFIGURATION)`` storage.
 """
 
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import func, update
@@ -38,41 +39,58 @@ class TelephonyConfigurationClient(BaseDBClient):
             return await session.get(TelephonyConfigurationModel, config_id)
 
     async def get_telephony_configuration_for_org(
-        self, config_id: int, organization_id: int
+        self, config_id: int, organization_id: int, *, active_only: bool = True
     ) -> Optional[TelephonyConfigurationModel]:
-        """Lookup scoped to an org — used to authorize per-org access."""
+        """Lookup scoped to an org — used to authorize per-org access.
+
+        Pass ``active_only=False`` for management paths that must see parked
+        rows (e.g. displaying a campaign's pinned config name even when parked).
+        """
         async with self.async_session() as session:
-            result = await session.execute(
-                select(TelephonyConfigurationModel).where(
-                    TelephonyConfigurationModel.id == config_id,
-                    TelephonyConfigurationModel.organization_id == organization_id,
-                )
+            stmt = select(TelephonyConfigurationModel).where(
+                TelephonyConfigurationModel.id == config_id,
+                TelephonyConfigurationModel.organization_id == organization_id,
             )
+            if active_only:
+                stmt = stmt.where(TelephonyConfigurationModel.inactive.is_(False))
+            result = await session.execute(stmt)
             return result.scalars().first()
 
     async def get_default_telephony_configuration(
-        self, organization_id: int
+        self, organization_id: int, *, active_only: bool = True
     ) -> Optional[TelephonyConfigurationModel]:
+        """Lookup the org's default outbound config.
+
+        Pass ``active_only=False`` for management paths that must see a parked
+        default (e.g. campaign validation where the default is shown regardless
+        of whether it is usable).
+        """
         async with self.async_session() as session:
-            result = await session.execute(
-                select(TelephonyConfigurationModel).where(
-                    TelephonyConfigurationModel.organization_id == organization_id,
-                    TelephonyConfigurationModel.is_default_outbound.is_(True),
-                )
+            stmt = select(TelephonyConfigurationModel).where(
+                TelephonyConfigurationModel.organization_id == organization_id,
+                TelephonyConfigurationModel.is_default_outbound.is_(True),
             )
+            if active_only:
+                stmt = stmt.where(TelephonyConfigurationModel.inactive.is_(False))
+            result = await session.execute(stmt)
             return result.scalars().first()
 
     async def list_telephony_configurations_by_provider(
-        self, organization_id: int, provider: str
+        self, organization_id: int, provider: str, *, active_only: bool = True
     ) -> List[TelephonyConfigurationModel]:
-        """Used by inbound matching to enumerate candidates of a given provider."""
+        """Used by inbound matching to enumerate candidates of a given provider.
+
+        Pass ``active_only=False`` for management queries that need to see all
+        configs regardless of parking state.
+        """
         async with self.async_session() as session:
-            result = await session.execute(
-                select(TelephonyConfigurationModel).where(
-                    TelephonyConfigurationModel.organization_id == organization_id,
-                    TelephonyConfigurationModel.provider == provider,
-                )
+            stmt = select(TelephonyConfigurationModel).where(
+                TelephonyConfigurationModel.organization_id == organization_id,
+                TelephonyConfigurationModel.provider == provider,
             )
+            if active_only:
+                stmt = stmt.where(TelephonyConfigurationModel.inactive.is_(False))
+            result = await session.execute(stmt)
             return list(result.scalars().all())
 
     async def count_telnyx_configs_missing_webhook_public_key(
@@ -127,21 +145,65 @@ class TelephonyConfigurationClient(BaseDBClient):
             )
             return int(result.scalar() or 0)
 
-    async def list_all_telephony_configurations_by_provider(
+    async def list_active_telephony_configurations_by_provider(
         self, provider: str
     ) -> List[TelephonyConfigurationModel]:
-        """List configs of a given provider across every organization.
+        """List the non-deactivated configs of a given provider, across all orgs.
 
         Used by background workers like the ARI manager that maintain
         long-lived connections per config row, independent of any one org.
+        Deactivated rows stay excluded until someone reactivates them.
         """
         async with self.async_session() as session:
             result = await session.execute(
                 select(TelephonyConfigurationModel).where(
                     TelephonyConfigurationModel.provider == provider,
+                    TelephonyConfigurationModel.inactive.is_(False),
                 )
             )
             return list(result.scalars().all())
+
+    async def set_telephony_configuration_inactive(
+        self, config_id: int, organization_id: int, reason: str
+    ) -> bool:
+        """Deactivate a config, recording when and why."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(TelephonyConfigurationModel)
+                .where(
+                    TelephonyConfigurationModel.id == config_id,
+                    TelephonyConfigurationModel.organization_id == organization_id,
+                )
+                .values(
+                    inactive=True,
+                    inactive_since=datetime.now(UTC),
+                    inactive_reason=reason[:255],
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            await session.commit()
+            return bool(result.rowcount)
+
+    async def set_telephony_configuration_active(
+        self, config_id: int, organization_id: int
+    ) -> bool:
+        """Clear the inactive flag and the recorded deactivation details."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(TelephonyConfigurationModel)
+                .where(
+                    TelephonyConfigurationModel.id == config_id,
+                    TelephonyConfigurationModel.organization_id == organization_id,
+                )
+                .values(
+                    inactive=False,
+                    inactive_since=None,
+                    inactive_reason=None,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            await session.commit()
+            return bool(result.rowcount)
 
     async def create_telephony_configuration(
         self,

@@ -334,12 +334,13 @@ async def _get_telephony_configuration_name(
     """Resolve the display name for a campaign's telephony configuration.
 
     Org-scoped lookup so a stale FK from another org (shouldn't happen, but
-    cheap to enforce) doesn't leak across tenants.
+    cheap to enforce) doesn't leak across tenants. Uses ``active_only=False``
+    so campaigns pinned to a parked config still show the config's name.
     """
     if config_id is None:
         return None
     cfg = await db_client.get_telephony_configuration_for_org(
-        config_id, organization_id
+        config_id, organization_id, active_only=False
     )
     return cfg.name if cfg else None
 
@@ -407,7 +408,8 @@ async def create_campaign(
 
     # Resolve which telephony config the campaign is pinned to. Explicit value
     # wins; otherwise default to the org's default config so legacy clients keep
-    # working through the migration window.
+    # working through the migration window. Inactive (parked) configs are
+    # rejected — they must be reactivated first.
     telephony_configuration_id = request.telephony_configuration_id
     if telephony_configuration_id:
         cfg = await db_client.get_telephony_configuration_for_org(
@@ -417,11 +419,21 @@ async def create_campaign(
             raise HTTPException(
                 status_code=400, detail="telephony_configuration_not_found"
             )
+        if cfg.inactive:
+            raise HTTPException(
+                status_code=400,
+                detail="telephony_configuration_inactive",
+            )
     else:
         default_cfg = await db_client.get_default_telephony_configuration(
             user.selected_organization_id
         )
         if default_cfg:
+            if default_cfg.inactive:
+                raise HTTPException(
+                    status_code=400,
+                    detail="default_telephony_configuration_inactive",
+                )
             telephony_configuration_id = default_cfg.id
 
     # Build retry_config dict if provided
