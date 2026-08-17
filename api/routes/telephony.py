@@ -22,6 +22,7 @@ from starlette.websockets import WebSocketDisconnect
 from api.db import db_client
 from api.db.models import UserModel
 from api.enums import CallType, WorkflowRunMode, WorkflowRunState
+from api.errors.failure import failure_already_reported
 from api.errors.telephony_errors import TelephonyError
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
@@ -184,6 +185,7 @@ async def initiate_call(
                 initial_context={
                     "phone_number": phone_number,
                     "called_number": phone_number,
+                    "direction": "outbound",
                     "provider": provider.PROVIDER_NAME,
                     "telephony_configuration_id": telephony_configuration_id,
                 },
@@ -279,6 +281,7 @@ async def initiate_call(
     updated_initial_context = {
         **(workflow_run.initial_context or {}),
         "called_number": phone_number,
+        "direction": "outbound",
         "telephony_configuration_id": telephony_configuration_id,
     }
     if result.caller_number:
@@ -767,7 +770,12 @@ async def _handle_telephony_websocket(
     except WebSocketDisconnect as e:
         logger.info(f"WebSocket disconnected: code={e.code}, reason={e.reason}")
     except Exception as e:
-        logger.error(f"Error in WebSocket connection: {e}")
+        # This catch-all also covers setup before the pipeline starts, so it
+        # still reports anything no inner seam has claimed.
+        if failure_already_reported(e):
+            logger.warning(f"WebSocket connection ended on a reported failure: {e}")
+        else:
+            logger.error(f"Error in WebSocket connection: {e}")
         try:
             await websocket.close(1011, "Internal server error")
         except RuntimeError:

@@ -1,4 +1,96 @@
+import pytest
+
 from api.services.pipecat.pre_call_fetch import _extract_initial_context
+from api.services.workflow.dto import PreCallFetchMode, StartCallNodeData
+from api.services.workflow.workflow_graph import Node
+
+
+class TestPreCallFetchMode:
+    """Tests for PreCallFetchMode and should_run_pre_call_fetch logic."""
+
+    def _make_node(self, mode: str | None = None, enabled: bool = False):
+        """Build a start-call Node with the specified mode/enabled fields."""
+        data = StartCallNodeData(
+            name="Start",
+            prompt="Hi",
+            pre_call_fetch_mode=(
+                PreCallFetchMode(mode) if mode else None
+            ),
+            pre_call_fetch_enabled=enabled,
+            pre_call_fetch_url="https://example.com/context",
+        )
+        return Node(id="start-1", node_type="startCall", data=data)
+
+    def test_mode_disabled_never_runs(self):
+        node = self._make_node(mode="disabled")
+        assert not node.should_run_pre_call_fetch(None)
+        assert not node.should_run_pre_call_fetch("inbound")
+        assert not node.should_run_pre_call_fetch("outbound")
+
+    def test_mode_always_runs_for_any_direction(self):
+        node = self._make_node(mode="always")
+        assert node.should_run_pre_call_fetch(None)
+        assert node.should_run_pre_call_fetch("inbound")
+        assert node.should_run_pre_call_fetch("outbound")
+
+    def test_mode_inbound_only_runs_for_inbound(self):
+        node = self._make_node(mode="inbound")
+        assert node.should_run_pre_call_fetch("inbound")
+        assert not node.should_run_pre_call_fetch("outbound")
+        assert not node.should_run_pre_call_fetch(None)
+
+    def test_mode_outbound_only_runs_for_outbound(self):
+        node = self._make_node(mode="outbound")
+        assert node.should_run_pre_call_fetch("outbound")
+        assert not node.should_run_pre_call_fetch("inbound")
+        assert not node.should_run_pre_call_fetch(None)
+
+    def test_legacy_enabled_true_migrates_to_always(self):
+        node = self._make_node(mode=None, enabled=True)
+        assert node.pre_call_fetch_mode == "always"
+        assert node.should_run_pre_call_fetch("inbound")
+        assert node.should_run_pre_call_fetch("outbound")
+
+    def test_legacy_enabled_false_migrates_to_disabled(self):
+        node = self._make_node(mode=None, enabled=False)
+        assert node.pre_call_fetch_mode == "disabled"
+        assert not node.should_run_pre_call_fetch("inbound")
+        assert not node.should_run_pre_call_fetch("outbound")
+
+    def test_mode_takes_precedence_over_legacy_enabled(self):
+        """If mode is explicitly set, it wins over pre_call_fetch_enabled."""
+        node = self._make_node(mode="disabled", enabled=True)
+        assert node.pre_call_fetch_mode == "disabled"
+        assert not node.should_run_pre_call_fetch("inbound")
+
+
+class TestStartCallNodeDataMigration:
+    """Tests for the legacy pre_call_fetch_enabled migration in StartCallNodeData."""
+
+    def test_migration_when_no_mode_and_enabled_true(self):
+        data = StartCallNodeData(
+            name="Start",
+            prompt="Hi",
+            pre_call_fetch_enabled=True,
+        )
+        assert data.pre_call_fetch_mode == PreCallFetchMode.always
+
+    def test_migration_when_no_mode_and_enabled_false(self):
+        data = StartCallNodeData(
+            name="Start",
+            prompt="Hi",
+            pre_call_fetch_enabled=False,
+        )
+        assert data.pre_call_fetch_mode == PreCallFetchMode.disabled
+
+    def test_explicit_mode_not_overwritten(self):
+        data = StartCallNodeData(
+            name="Start",
+            prompt="Hi",
+            pre_call_fetch_mode=PreCallFetchMode.inbound,
+            pre_call_fetch_enabled=True,
+        )
+        assert data.pre_call_fetch_mode == PreCallFetchMode.inbound
 
 
 class TestExtractInitialContext:

@@ -378,7 +378,7 @@ class GoogleLLMService(BaseLLMConfiguration):
     model_config = GOOGLE_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE] = ServiceProviders.GOOGLE
     model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3.5-flash",
         description="Gemini model on Google AI Studio (not Vertex).",
         json_schema_extra={"examples": GOOGLE_MODELS, "allow_custom_input": True},
     )
@@ -389,7 +389,7 @@ class GoogleVertexLLMConfiguration(BaseLLMConfiguration):
     model_config = GOOGLE_VERTEX_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.GOOGLE_VERTEX] = ServiceProviders.GOOGLE_VERTEX
     model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3.5-flash",
         description="Gemini model on Vertex AI.",
         json_schema_extra={
             "examples": GOOGLE_VERTEX_MODELS,
@@ -1394,7 +1394,7 @@ class LmntTTSConfiguration(BaseTTSConfiguration):
     )
 
 
-FISH_AUDIO_TTS_MODELS = ["s2-pro", "s2.1-pro", "s2.1-pro-free", "s1"]
+FISH_AUDIO_TTS_MODELS = ["s2.1-pro", "s2-pro", "s2.1-pro-free", "s1"]
 FISH_AUDIO_LATENCY_MODES = ["balanced", "normal"]
 FISH_AUDIO_TTS_LANGUAGES = [
     "en",
@@ -1417,9 +1417,9 @@ class FishAudioTTSConfiguration(BaseTTSConfiguration):
     model_config = FISH_AUDIO_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.FISH_AUDIO] = ServiceProviders.FISH_AUDIO
     model: str = Field(
-        default="s2-pro",
+        default="s2.1-pro",
         description=(
-            "Fish Audio TTS model. s2-pro / s2.1-pro are production models; "
+            "Fish Audio TTS model. s2.1-pro / s2-pro are production models; "
             "s2.1-pro-free is free under fair use for prototyping."
         ),
         json_schema_extra={
