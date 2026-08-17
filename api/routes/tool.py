@@ -230,7 +230,7 @@ async def test_tool(
     tool_config = (
         tool.definition.get("config", {}) if isinstance(tool.definition, dict) else {}
     )
-    configured_method = tool_config.get("method", "?")
+    configured_method = tool_config.get("method", "?").upper()
     configured_url = tool_config.get("url", "?")
 
     started_at = time.perf_counter()
@@ -250,17 +250,14 @@ async def test_tool(
 
     hint = _hint_for_status_code(status_code, configured_method)
 
-    # Preset values take precedence over model-supplied values, matching live
-    # execution after configured preset templates have been resolved.
-    resolved_arguments = {**request.llm_params, **request.preset_params}
+    # Model-supplied values take precedence over context-derived presets,
+    # matching live execution. URL variables remain in the body/query.
+    resolved_arguments = {**request.preset_params, **request.llm_params}
 
-    # Mirror execute_http_tool's own branch: POST/PUT/PATCH send the
-    # resolved arguments as a JSON body; GET/DELETE send them as query
-    # params. Never both.
     request_body = None
     request_params = None
     if configured_method in ("POST", "PUT", "PATCH"):
-        request_body = resolved_arguments  # keep {} so preview matches wire request
+        request_body = result.get("request_body_preview", resolved_arguments)
     elif resolved_arguments:
         request_params = serialize_query_params(resolved_arguments)
 
@@ -272,7 +269,7 @@ async def test_tool(
         duration_ms=duration_ms,
         hint=hint,
         request_method=configured_method,
-        request_url=configured_url,
+        request_url=result.get("rendered_url") or configured_url,
         request_headers=result.get("request_headers", {}),
         request_body=request_body,
         request_params=request_params,

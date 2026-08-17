@@ -21,11 +21,12 @@ def test_fish_audio_tts_configuration_defaults():
     assert config.provider == ServiceProviders.FISH_AUDIO
     assert config.voice == "voice-ref-id"
     assert config.language == "en"
-    assert config.model == "s2-pro"
+    assert config.model == "s2.1-pro"
     assert config.latency == "balanced"
     assert config.speed == 1.0
     assert config.volume == 0
     assert config.normalize is True
+    assert "s2.1-pro" in FISH_AUDIO_TTS_MODELS
     assert "s2-pro" in FISH_AUDIO_TTS_MODELS
     assert "balanced" in FISH_AUDIO_LATENCY_MODES
     assert "bs" in config.model_fields["language"].json_schema_extra["examples"]
