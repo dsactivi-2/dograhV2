@@ -11,7 +11,7 @@ minio==7.2.16
 alembic-postgresql-enum==1.8.0
 python-multipart==0.0.27
 sentry-sdk[fastapi]==2.38.0
-sqlalchemy[asyncio]==2.0.43
+sqlalchemy[asyncio]==2.0.52
 msgpack==1.1.2
 pgvector==0.4.2
 bcrypt==5.0.0
