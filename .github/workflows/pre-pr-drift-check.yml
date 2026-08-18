@@ -2,7 +2,7 @@ name: Pre-PR drift check
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, Pre-main, pre-pre-main]
     paths:
       - "api/**"
       - "ui/**"
