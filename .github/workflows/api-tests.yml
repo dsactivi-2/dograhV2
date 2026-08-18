@@ -73,6 +73,7 @@ jobs:
       ENVIRONMENT: test
       LOG_LEVEL: DEBUG
       PYTHONPATH: ${{ github.workspace }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
       - name: Checkout repo (with pipecat submodule)
@@ -107,11 +108,11 @@ jobs:
         run: pytest tests/ -xvs
 
       - name: Send Slack notification - Failure
-        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1.26.0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v4.0.0
         with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "text": "❌ Dograh API tests failed on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
