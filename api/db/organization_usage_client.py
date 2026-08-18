@@ -159,6 +159,8 @@ class OrganizationUsageClient(BaseDBClient):
                 "runId",
                 "workflowId",
                 "campaignId",
+                "callDirection",
+                "callChannel",
             }
             sanitized_filters = []
 
@@ -293,6 +295,8 @@ class OrganizationUsageClient(BaseDBClient):
                 "runId",
                 "workflowId",
                 "campaignId",
+                "callDirection",
+                "callChannel",
             }
             sanitized_filters = []
             if filters:
