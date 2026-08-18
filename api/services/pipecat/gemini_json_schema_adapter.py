@@ -4,7 +4,14 @@ from typing import Any
 
 from pipecat.adapters.schemas.tools_schema import AdapterType, ToolsSchema
 from pipecat.adapters.services.gemini_adapter import GeminiLLMAdapter
-from pipecat.adapters.services.gemini_live_adapter import GeminiLiveLLMAdapter
+
+try:
+    from pipecat.adapters.services.gemini_live_adapter import GeminiLiveLLMAdapter
+
+    _GEMINI_LIVE_AVAILABLE = True
+except ImportError:
+    _GEMINI_LIVE_AVAILABLE = False
+    GeminiLiveLLMAdapter = None  # type: ignore[misc,assignment]
 
 
 class DograhGeminiJSONSchemaAdapter(GeminiLLMAdapter):
@@ -40,14 +47,32 @@ class DograhGeminiJSONSchemaAdapter(GeminiLLMAdapter):
         return formatted_standard_tools + custom_gemini_tools
 
 
-class DograhGeminiLiveJSONSchemaAdapter(
-    GeminiLiveLLMAdapter, DograhGeminiJSONSchemaAdapter
-):
-    """Gemini Live adapter with the JSON Schema tool-parameter fix.
+if _GEMINI_LIVE_AVAILABLE:
 
-    Combines :class:`GeminiLiveLLMAdapter` (tool calls and results converted to
-    text, which is all Gemini Live's API accepts when seeding a session) with
-    the ``parameters_json_schema`` tool formatting above.
-    """
+    class DograhGeminiLiveJSONSchemaAdapter(
+        GeminiLiveLLMAdapter, DograhGeminiJSONSchemaAdapter
+    ):
+        """Gemini Live adapter with the JSON Schema tool-parameter fix.
 
-    pass
+        Combines :class:`GeminiLiveLLMAdapter` (tool calls and results converted to
+        text, which is all Gemini Live's API accepts when seeding a session) with
+        the ``parameters_json_schema`` tool formatting above.
+        """
+
+        pass
+
+else:
+
+    class DograhGeminiLiveJSONSchemaAdapter:  # type: ignore[no-redef]
+        """Placeholder when Gemini Live adapter is unavailable.
+
+        The pipecat submodule does not include ``gemini_live_adapter``. This stub
+        raises a clear error if code attempts to instantiate it.
+        """
+
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "DograhGeminiLiveJSONSchemaAdapter requires "
+                "pipecat.adapters.services.gemini_live_adapter, which is not "
+                "available in the current pipecat installation."
+            )
