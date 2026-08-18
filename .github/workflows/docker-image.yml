@@ -226,8 +226,10 @@ jobs:
     steps:
       - name: Slack success
         if: needs.merge.result == 'success' && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "text": "✅ Docker images built for ${{ needs.prepare.outputs.version }} on ${{ github.ref_name }} by ${{ github.actor }}"
@@ -235,8 +237,10 @@ jobs:
 
       - name: Slack failure
         if: needs.merge.result != 'success' && env.SLACK_WEBHOOK_URL != ''
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "text": "❌ Docker build failed for ${{ needs.prepare.outputs.version }} on ${{ github.ref_name }} by ${{ github.actor }} - <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Logs>"
