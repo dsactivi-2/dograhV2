@@ -3,7 +3,7 @@ name: PR safety checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, Pre-main, pre-pre-main]
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
@@ -25,28 +25,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch main + PR head
+      - name: Fetch base (${{ github.base_ref }}) + PR head
         run: |
-          git fetch origin main
+          git fetch origin "${{ github.base_ref }}"
           git fetch origin "${{ github.head_ref }}"
 
-      - name: Test-merge into main (no commit)
+      - name: Test-merge into ${{ github.base_ref }} (no commit)
         id: merge
         run: |
           set -euo pipefail
           git checkout -B __pr_head "origin/${{ github.head_ref }}"
-          git checkout -B __main origin/main
+          git checkout -B __base "origin/${{ github.base_ref }}"
           # merge-tree: conflict check without dirty working tree (git 2.38+)
-          if git merge-tree --write-tree origin/main "origin/${{ github.head_ref }}" > /tmp/merge-tree.out 2> /tmp/merge-tree.err; then
+          if git merge-tree --write-tree "origin/${{ github.base_ref }}" "origin/${{ github.head_ref }}" > /tmp/merge-tree.out 2> /tmp/merge-tree.err; then
             echo "mergeable=true" >> "$GITHUB_OUTPUT"
-            echo "Merge into main is clean (no conflicts)."
+            echo "Merge into ${{ github.base_ref }} is clean (no conflicts)."
             head -c 500 /tmp/merge-tree.out || true
           else
             echo "mergeable=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Merge into main has conflicts"
+            echo "::error::Merge into ${{ github.base_ref }} has conflicts"
             cat /tmp/merge-tree.err || true
             # Fallback message via classic merge attempt for readable conflict list
-            git checkout -B __try origin/main
+            git checkout -B __try "origin/${{ github.base_ref }}"
             git merge --no-commit --no-ff "origin/${{ github.head_ref }}" || true
             git diff --name-only --diff-filter=U || true
             exit 1
