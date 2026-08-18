@@ -1535,9 +1535,7 @@ class ARIManager:
                         f"missing ws_client_name"
                     )
                 except Exception as exc:
-                    logger.error(
-                        f"[ARI Manager] Failed to park config {row.id}: {exc}"
-                    )
+                    logger.error(f"[ARI Manager] Failed to park config {row.id}: {exc}")
                 continue
 
             configs.append(

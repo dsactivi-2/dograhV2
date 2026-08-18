@@ -13,9 +13,7 @@ class TestPreCallFetchMode:
         data = StartCallNodeData(
             name="Start",
             prompt="Hi",
-            pre_call_fetch_mode=(
-                PreCallFetchMode(mode) if mode else None
-            ),
+            pre_call_fetch_mode=(PreCallFetchMode(mode) if mode else None),
             pre_call_fetch_enabled=enabled,
             pre_call_fetch_url="https://example.com/context",
         )
