@@ -1516,6 +1516,7 @@ class DeepgramSTTConfiguration(BaseSTTConfiguration):
             "examples": DEEPGRAM_LANGUAGES,
             "model_options": {
                 "nova-3-general": DEEPGRAM_LANGUAGES,
+                "nova-3-medical": DEEPGRAM_LANGUAGES,
                 "flux-general-en": ("en",),
                 "flux-general-multi": DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
             },
@@ -1548,6 +1549,7 @@ class Deepgram2STTConfiguration(BaseSTTConfiguration):
             "examples": DEEPGRAM_LANGUAGES,
             "model_options": {
                 "nova-3-general": DEEPGRAM_LANGUAGES,
+                "nova-3-medical": DEEPGRAM_LANGUAGES,
                 "flux-general-en": ("en",),
                 "flux-general-multi": DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
             },
@@ -1580,6 +1582,7 @@ class Deepgram3STTConfiguration(BaseSTTConfiguration):
             "examples": DEEPGRAM_LANGUAGES,
             "model_options": {
                 "nova-3-general": DEEPGRAM_LANGUAGES,
+                "nova-3-medical": DEEPGRAM_LANGUAGES,
                 "flux-general-en": ("en",),
                 "flux-general-multi": DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
             },
