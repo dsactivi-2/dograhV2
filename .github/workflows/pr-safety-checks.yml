@@ -1,9 +1,9 @@
-# Required safety gates for every PR into main.
+# Required safety gates for every PR into main, Pre-main, or pre-pre-main.
 name: PR safety checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, Pre-main, pre-pre-main]
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
@@ -25,28 +25,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch main + PR head
+      - name: Fetch base branch + PR head
         run: |
-          git fetch origin main
+          git fetch origin "${{ github.base_ref }}"
           git fetch origin "${{ github.head_ref }}"
 
-      - name: Test-merge into main (no commit)
+      - name: Test-merge into base branch (no commit)
         id: merge
         run: |
           set -euo pipefail
+          BASE="${{ github.base_ref }}"
           git checkout -B __pr_head "origin/${{ github.head_ref }}"
-          git checkout -B __main origin/main
+          git checkout -B __base "origin/$BASE"
           # merge-tree: conflict check without dirty working tree (git 2.38+)
-          if git merge-tree --write-tree origin/main "origin/${{ github.head_ref }}" > /tmp/merge-tree.out 2> /tmp/merge-tree.err; then
+          if git merge-tree --write-tree "origin/$BASE" "origin/${{ github.head_ref }}" > /tmp/merge-tree.out 2> /tmp/merge-tree.err; then
             echo "mergeable=true" >> "$GITHUB_OUTPUT"
-            echo "Merge into main is clean (no conflicts)."
+            echo "Merge into $BASE is clean (no conflicts)."
             head -c 500 /tmp/merge-tree.out || true
           else
             echo "mergeable=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Merge into main has conflicts"
+            echo "::error::Merge into $BASE has conflicts"
             cat /tmp/merge-tree.err || true
             # Fallback message via classic merge attempt for readable conflict list
-            git checkout -B __try origin/main
+            git checkout -B __try "origin/$BASE"
             git merge --no-commit --no-ff "origin/${{ github.head_ref }}" || true
             git diff --name-only --diff-filter=U || true
             exit 1
